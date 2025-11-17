@@ -10,5 +10,7 @@ export default defineSchema({
     theme: v.string(),
     musicUrl: v.optional(v.string()),
     maxUsers: v.optional(v.number()),
-  }).index('visibility', ['visibility']),
+  })
+    .index('visibility', ['visibility'])
+    .index('ownerId', ['ownerId']),
 })
