@@ -17,6 +17,7 @@ export const THEMES = [
   { value: '💻', label: 'Cyber Loft', emoji: '💻' },
   { value: '🚀', label: 'Outer Space', emoji: '🚀' },
   { value: '☁️', label: 'Cloud Room', emoji: '☁️' },
+  { value: '🏢', label: 'Meeting Room', emoji: '🏢' },
 ]
 
 export interface CreateRoomFormProps {

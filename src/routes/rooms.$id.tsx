@@ -58,6 +58,20 @@ const TIMER_DURATIONS: Record<TimerType, number> = {
   longBreak: 15 * 60, // 15 minutes
 }
 
+// Map theme emoji to background image filename
+const getBackgroundImage = (theme: string): string => {
+  const themeMap: Record<string, string> = {
+    '🪷': 'zen-garden.webp',
+    '☕️': 'midnight-cafe.webp',
+    '💻': 'cyber-loft.webp',
+    '🚀': 'outer-space.webp',
+    '☁️': 'cloud-room.webp',
+    '🏢': 'meeting-room.webp',
+  }
+  const imageName = themeMap[theme] || 'meeting-room.webp'
+  return `/assets/images/bg/${imageName}`
+}
+
 // Memoized participant avatar component to prevent unnecessary re-renders
 const ParticipantAvatar = memo(
   ({
@@ -1201,7 +1215,7 @@ function RoomPage() {
             isChatOpen ? 'cursor-none' : ''
           }`}
           style={{
-            backgroundImage: 'url(/assets/images/bg/meeting-room.webp)',
+            backgroundImage: `url(${getBackgroundImage(room.theme)})`,
           }}
           onMouseMove={(e) => {
             handleMouseMove(e)
