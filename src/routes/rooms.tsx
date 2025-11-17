@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Outlet, createFileRoute, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useUser } from '@clerk/clerk-react'
 import {
   Authenticated,
@@ -37,6 +37,7 @@ export const Route = createFileRoute('/rooms')({
 
 function RoomsPage() {
   const navigate = useNavigate()
+  const matchRoute = useMatchRoute()
   const { user } = useUser()
   const rooms = useQuery(api.rooms.list)
   const createRoom = useMutation(api.rooms.create)
@@ -54,6 +55,9 @@ function RoomsPage() {
     musicUrl: '',
     maxUsers: undefined as number | undefined,
   })
+
+  // Check if we're on a detail route
+  const isDetailRoute = matchRoute({ to: '/rooms/$id' })
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -149,6 +153,12 @@ function RoomsPage() {
     }
   }
 
+  // If we're on a detail route, render the child route
+  if (isDetailRoute) {
+    return <Outlet />
+  }
+
+  // Otherwise, render the rooms list
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
