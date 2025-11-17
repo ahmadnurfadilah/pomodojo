@@ -81,6 +81,12 @@ export default function Header() {
           >
             Rooms
           </Link>
+          <Link
+            to="/leaderboard"
+            className="transition-colors hover:text-emerald-700"
+          >
+            Leaderboard
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2">

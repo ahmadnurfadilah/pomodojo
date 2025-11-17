@@ -961,3 +961,100 @@ export const removeCursorPosition = mutation({
     }
   },
 })
+
+/**
+ * Get global leaderboard across all rooms
+ * Returns users ordered by total time (descending)
+ * Supports filtering by time period: 'today', 'thisMonth', 'lifetime'
+ */
+export const getGlobalLeaderboard = query({
+  args: {
+    period: v.union(
+      v.literal('today'),
+      v.literal('thisMonth'),
+      v.literal('lifetime'),
+    ),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Get all sessions
+      const allSessions = await ctx.db.query('pomodoroSessions').collect()
+
+      // Calculate time boundaries based on period
+      const now = Date.now()
+      let startTime: number
+
+      switch (args.period) {
+        case 'today': {
+          const today = new Date(now)
+          today.setHours(0, 0, 0, 0)
+          startTime = today.getTime()
+          break
+        }
+        case 'thisMonth': {
+          const thisMonth = new Date(now)
+          thisMonth.setDate(1)
+          thisMonth.setHours(0, 0, 0, 0)
+          startTime = thisMonth.getTime()
+          break
+        }
+        case 'lifetime':
+        default:
+          startTime = 0
+          break
+      }
+
+      // Filter sessions by time period
+      const filteredSessions = allSessions.filter(
+        (session) => session.completedAt >= startTime,
+      )
+
+      // Group by userId and aggregate
+      const userStats = new Map<
+        string,
+        {
+          userId: string
+          userName: string
+          userInitial?: string
+          userAvatarUrl?: string
+          totalSessions: number
+          totalTime: number
+        }
+      >()
+
+      for (const session of filteredSessions) {
+        const existing = userStats.get(session.userId)
+        if (existing) {
+          existing.totalSessions += 1
+          existing.totalTime += session.duration
+          // Update avatar/initial if available (use latest)
+          if (session.userAvatarUrl) {
+            existing.userAvatarUrl = session.userAvatarUrl
+          }
+          if (session.userInitial) {
+            existing.userInitial = session.userInitial
+          }
+        } else {
+          userStats.set(session.userId, {
+            userId: session.userId,
+            userName: session.userName,
+            userInitial: session.userInitial,
+            userAvatarUrl: session.userAvatarUrl,
+            totalSessions: 1,
+            totalTime: session.duration,
+          })
+        }
+      }
+
+      // Convert to array and sort by total time (descending)
+      const leaderboard = Array.from(userStats.values()).sort(
+        (a, b) => b.totalTime - a.totalTime,
+      )
+
+      return leaderboard
+    } catch (error) {
+      console.error('Error getting global leaderboard:', error)
+      throw error
+    }
+  },
+})
