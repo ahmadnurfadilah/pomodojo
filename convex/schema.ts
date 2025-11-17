@@ -46,6 +46,8 @@ export default defineSchema({
     roomId: v.id('rooms'),
     userId: v.string(),
     userName: v.string(),
+    userInitial: v.optional(v.string()),
+    userAvatarUrl: v.optional(v.string()),
     timerType: v.union(
       v.literal('pomodoro'),
       v.literal('shortBreak'),

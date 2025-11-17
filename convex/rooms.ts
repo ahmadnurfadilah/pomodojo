@@ -444,6 +444,8 @@ export const savePomodoroSession = mutation({
         roomId: args.roomId,
         userId,
         userName: participant.userName,
+        userInitial: participant.userInitial,
+        userAvatarUrl: participant.userAvatarUrl,
         timerType: args.timerType,
         duration: args.duration,
         task: args.task,
@@ -615,6 +617,70 @@ export const remove = mutation({
       return { success: true }
     } catch (error) {
       console.error('Error deleting room:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Get leaderboard for a room
+ * Returns users ordered by total time (descending)
+ */
+export const getLeaderboard = query({
+  args: { roomId: v.id('rooms') },
+  handler: async (ctx, args) => {
+    try {
+      // Get all sessions for this room
+      const sessions = await ctx.db
+        .query('pomodoroSessions')
+        .withIndex('roomId', (q) => q.eq('roomId', args.roomId))
+        .collect()
+
+      // Group by userId and aggregate
+      const userStats = new Map<
+        string,
+        {
+          userId: string
+          userName: string
+          userInitial?: string
+          userAvatarUrl?: string
+          totalSessions: number
+          totalTime: number
+        }
+      >()
+
+      for (const session of sessions) {
+        const existing = userStats.get(session.userId)
+        if (existing) {
+          existing.totalSessions += 1
+          existing.totalTime += session.duration
+          // Update avatar/initial if available (use latest)
+          if (session.userAvatarUrl) {
+            existing.userAvatarUrl = session.userAvatarUrl
+          }
+          if (session.userInitial) {
+            existing.userInitial = session.userInitial
+          }
+        } else {
+          userStats.set(session.userId, {
+            userId: session.userId,
+            userName: session.userName,
+            userInitial: session.userInitial,
+            userAvatarUrl: session.userAvatarUrl,
+            totalSessions: 1,
+            totalTime: session.duration,
+          })
+        }
+      }
+
+      // Convert to array and sort by total time (descending)
+      const leaderboard = Array.from(userStats.values()).sort(
+        (a, b) => b.totalTime - a.totalTime,
+      )
+
+      return leaderboard
+    } catch (error) {
+      console.error('Error getting leaderboard:', error)
       throw error
     }
   },

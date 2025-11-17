@@ -9,6 +9,7 @@ import {
 import {
   Hourglass,
   LogIn,
+  Medal,
   Pause,
   Play,
   RotateCcw,
@@ -228,6 +229,9 @@ function RoomPage() {
   const participants = useQuery(api.rooms.getParticipants, {
     roomId: id as any,
   })
+  const leaderboard = useQuery(api.rooms.getLeaderboard, {
+    roomId: id as any,
+  })
   const joinRoom = useMutation(api.rooms.join)
   const updatePosition = useMutation(api.rooms.updatePosition)
   const updateTimer = useMutation(api.rooms.updateTimer)
@@ -239,6 +243,7 @@ function RoomPage() {
   const [isJoining, setIsJoining] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
+  const [isLeaderboardDialogOpen, setIsLeaderboardDialogOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -887,15 +892,24 @@ function RoomPage() {
                 </Link>
               </div>
               <div className="flex items-center gap-5">
-                {isRoomOwner && (
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setIsSettingsDialogOpen(true)}
+                    onClick={() => setIsLeaderboardDialogOpen(true)}
                     className="p-2 rounded-lg hover:bg-white/60 transition-colors"
-                    aria-label="Room settings"
+                    aria-label="Leaderboard"
                   >
-                    <Settings className="size-5" />
+                    <Medal className="size-5" />
                   </button>
-                )}
+                  {isRoomOwner && (
+                    <button
+                      onClick={() => setIsSettingsDialogOpen(true)}
+                      className="p-2 rounded-lg hover:bg-white/60 transition-colors"
+                      aria-label="Room settings"
+                    >
+                      <Settings className="size-5" />
+                    </button>
+                  )}
+                </div>
                 <UserButton />
               </div>
             </div>
@@ -1106,6 +1120,117 @@ function RoomPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Leaderboard Dialog */}
+        <Dialog
+          open={isLeaderboardDialogOpen}
+          onOpenChange={setIsLeaderboardDialogOpen}
+        >
+          <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="text-[20px] font-semibold tracking-tight text-slate-900 flex items-center gap-2">
+                <Medal className="size-4 text-yellow-500" />
+                Leaderboard
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-700">
+                Top performers ranked by total focus time
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-2 flex-1 overflow-y-auto min-h-0">
+              {leaderboard === undefined ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></div>
+                </div>
+              ) : leaderboard.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  <p>No sessions yet. Start focusing to appear on the leaderboard!</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5 pr-1">
+                  {leaderboard.map((entry, index) => {
+                    // Format total time: convert seconds to hours and minutes
+                    const totalHours = Math.floor(entry.totalTime / 3600)
+                    const totalMinutes = Math.floor((entry.totalTime % 3600) / 60)
+                    const timeDisplay =
+                      totalHours > 0
+                        ? `${totalHours}h ${totalMinutes}m`
+                        : `${totalMinutes}m`
+
+                    return (
+                      <div
+                        key={entry.userId}
+                        className={`flex items-center gap-2 p-2 rounded-lg border ${
+                          index === 0
+                            ? 'bg-yellow-50 border-yellow-200'
+                            : index === 1
+                              ? 'bg-slate-50 border-slate-200'
+                              : index === 2
+                                ? 'bg-orange-50 border-orange-200'
+                                : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        {/* Rank */}
+                        <div
+                          className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center font-semibold text-xs ${
+                            index === 0
+                              ? 'bg-yellow-500 text-white'
+                              : index === 1
+                                ? 'bg-slate-400 text-white'
+                                : index === 2
+                                  ? 'bg-orange-500 text-white'
+                                  : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {index + 1}
+                        </div>
+
+                        {/* Avatar */}
+                        <div className="shrink-0">
+                          <div className="relative w-8 h-8 mask mask-squircle bg-slate-200">
+                            {entry.userAvatarUrl ? (
+                              <img
+                                src={entry.userAvatarUrl}
+                                alt={entry.userName}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-emerald-500/90">
+                                <span className="text-xs font-semibold tracking-tight text-white">
+                                  {entry.userInitial ||
+                                    (entry.userName[0]
+                                      ? entry.userName[0].toUpperCase()
+                                      : 'U')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* User Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-slate-900 truncate">
+                            {entry.userName}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            {entry.totalSessions} session{entry.totalSessions !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+
+                        {/* Total Time */}
+                        <div className="shrink-0 text-right">
+                          <div className="text-sm font-semibold text-slate-900">
+                            {timeDisplay}
+                          </div>
+                          <div className="text-[10px] text-slate-500">total</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }
