@@ -8,6 +8,7 @@ import {
 } from 'convex/react'
 import { Hourglass, LogIn, Pause, Play, RotateCcw, Square } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '../../convex/_generated/api'
 import Header from '../components/header'
 import { Button } from '@/components/ui/button'
@@ -268,6 +269,17 @@ function RoomPage() {
   const handleJoinRoom = async () => {
     if (!user) return
 
+    // Check if room is full before attempting to join
+    if (room?.maxUsers && participants) {
+      const activeCount = participants.length
+      if (activeCount >= room.maxUsers) {
+        toast.error('Room is full', {
+          description: `This room has reached its maximum capacity of ${room.maxUsers} users.`,
+        })
+        return
+      }
+    }
+
     setIsJoining(true)
     try {
       const userInitial =
@@ -287,9 +299,17 @@ function RoomPage() {
       setHasJoined(true)
     } catch (error: any) {
       console.error('Failed to join room:', error)
-      alert(
-        error?.message || 'Failed to join room. Please check the join code.',
-      )
+      const errorMessage = error?.message || 'Failed to join room. Please check the join code.'
+
+      if (errorMessage === 'Room is full') {
+        toast.error('Room is full', {
+          description: `This room has reached its maximum capacity of ${room?.maxUsers || 0} users.`,
+        })
+      } else {
+        toast.error('Failed to join room', {
+          description: errorMessage,
+        })
+      }
     } finally {
       setIsJoining(false)
     }
@@ -608,8 +628,16 @@ function RoomPage() {
                   )}
                   {room.maxUsers && (
                     <div>
-                      <p className="text-xs text-slate-500 mb-1">Max Users</p>
-                      <p className="text-sm text-slate-900">{room.maxUsers}</p>
+                      <p className="text-xs text-slate-500 mb-1">Users</p>
+                      <p className="text-sm text-slate-900">
+                        {participants ? participants.length : 0} / {room.maxUsers}
+                      </p>
+                    </div>
+                  )}
+                  {!room.maxUsers && participants && participants.length > 0 && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Active Users</p>
+                      <p className="text-sm text-slate-900">{participants.length}</p>
                     </div>
                   )}
                   {room.visibility === 'private' && (
@@ -658,16 +686,28 @@ function RoomPage() {
                     </div>
                   </Unauthenticated>
                   <Authenticated>
-                    <Button
-                      onClick={handleJoinRoom}
-                      disabled={
-                        isJoining ||
-                        (room.visibility === 'private' && !joinCode)
-                      }
-                      className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
-                    >
-                      {isJoining ? 'Joining...' : 'Join Room'}
-                    </Button>
+                    {(() => {
+                      const isFull = Boolean(
+                        room.maxUsers && participants && participants.length >= room.maxUsers,
+                      )
+                      return (
+                        <Button
+                          onClick={handleJoinRoom}
+                          disabled={
+                            isJoining ||
+                            (room.visibility === 'private' && !joinCode) ||
+                            isFull
+                          }
+                          className="w-full bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isFull
+                            ? 'Room Full'
+                            : isJoining
+                              ? 'Joining...'
+                              : 'Join Room'}
+                        </Button>
+                      )
+                    })()}
                   </Authenticated>
                 </div>
 

@@ -13,6 +13,7 @@ import ConvexProvider from '../integrations/convex/provider'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import appCss from '../styles.css?url'
+import { Toaster } from '../components/ui/sonner'
 
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -91,6 +92,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             />
           </ConvexProvider>
         </ClerkProvider>
+        <Toaster />
         <Scripts />
       </body>
     </html>

@@ -18,6 +18,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '../../convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -341,6 +342,7 @@ function RoomCard({
 }) {
   const navigate = useNavigate()
   const isOwner = currentUserId && room.ownerId === currentUserId
+  const isFull = room.maxUsers && room.activeUsers >= room.maxUsers
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on action buttons
@@ -350,6 +352,15 @@ function RoomCard({
     ) {
       return
     }
+
+    // Prevent navigation if room is full
+    if (isFull) {
+      toast.error('Room is full', {
+        description: `This room has reached its maximum capacity of ${room.maxUsers} users.`,
+      })
+      return
+    }
+
     navigate({ to: '/rooms/$id', params: { id: room.id } })
   }
 
@@ -366,7 +377,11 @@ function RoomCard({
   return (
     <div
       onClick={handleCardClick}
-      className="rounded-2xl border border-emerald-100 bg-white/80 p-4 sm:p-5 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 cursor-pointer group h-full flex flex-col"
+      className={`rounded-2xl border border-emerald-100 bg-white/80 p-4 sm:p-5 transition-all duration-150 h-full flex flex-col ${
+        isFull
+          ? 'opacity-60 cursor-not-allowed'
+          : 'hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer group'
+      }`}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="text-4xl">{room.theme}</div>
@@ -404,13 +419,21 @@ function RoomCard({
           <div className="flex items-center gap-1 text-[11px] text-slate-600">
             <Users className="w-4 h-4" />
             <span className="font-medium">
-              {room.maxUsers ? `Max ${room.maxUsers}` : 'Unlimited'}
+              {room.maxUsers
+                ? `${room.activeUsers || 0}/${room.maxUsers}`
+                : room.activeUsers || 0}
             </span>
           </div>
-          <div className="flex items-center text-emerald-600 font-medium text-[11px] group-hover:gap-2 transition-all">
-            Join Room
-            <ArrowRight className="ml-1 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </div>
+          {isFull ? (
+            <div className="flex items-center text-red-600 font-medium text-[11px]">
+              Full
+            </div>
+          ) : (
+            <div className="flex items-center text-emerald-600 font-medium text-[11px] group-hover:gap-2 transition-all">
+              Join Room
+              <ArrowRight className="ml-1 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          )}
         </div>
       </div>
     </div>

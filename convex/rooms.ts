@@ -43,18 +43,39 @@ export const list = query({
       })
 
       // Convert to array and map to return format
-      return Array.from(roomMap.values())
-        .sort((a, b) => b._creationTime - a._creationTime)
-        .map((room) => ({
-          id: room._id,
-          name: room.name,
-          theme: room.theme,
-          ownerId: room.ownerId,
-          visibility: room.visibility,
-          musicUrl: room.musicUrl,
-          maxUsers: room.maxUsers,
-          createdAt: room._creationTime,
-        }))
+      const roomsArray = Array.from(roomMap.values()).sort(
+        (a, b) => b._creationTime - a._creationTime,
+      )
+
+      // Get active users count for each room
+      const roomsWithActiveUsers = await Promise.all(
+        roomsArray.map(async (room) => {
+          const participants = await ctx.db
+            .query('roomParticipants')
+            .withIndex('roomId', (q) => q.eq('roomId', room._id))
+            .collect()
+
+          // Filter out participants who haven't been seen in 30 seconds (disconnected)
+          const now = Date.now()
+          const activeParticipants = participants.filter(
+            (p) => now - p.lastSeen < 30000,
+          )
+
+          return {
+            id: room._id,
+            name: room.name,
+            theme: room.theme,
+            ownerId: room.ownerId,
+            visibility: room.visibility,
+            musicUrl: room.musicUrl,
+            maxUsers: room.maxUsers,
+            activeUsers: activeParticipants.length,
+            createdAt: room._creationTime,
+          }
+        }),
+      )
+
+      return roomsWithActiveUsers
     } catch (error) {
       console.error('Error listing rooms:', error)
       throw error
@@ -148,6 +169,24 @@ export const join = mutation({
           }),
         })
         return { success: true, roomId: room._id }
+      }
+
+      // Check if room is full (only for new participants)
+      if (room.maxUsers) {
+        const participants = await ctx.db
+          .query('roomParticipants')
+          .withIndex('roomId', (q) => q.eq('roomId', args.roomId))
+          .collect()
+
+        // Filter out participants who haven't been seen in 30 seconds (disconnected)
+        const now = Date.now()
+        const activeParticipants = participants.filter(
+          (p) => now - p.lastSeen < 30000,
+        )
+
+        if (activeParticipants.length >= room.maxUsers) {
+          throw new Error('Room is full')
+        }
       }
 
       // Only require join code for new participants joining private rooms
