@@ -27,10 +27,35 @@ export default defineSchema({
       v.literal('running'),
       v.literal('paused'),
     ),
+    timerType: v.optional(
+      v.union(
+        v.literal('pomodoro'),
+        v.literal('shortBreak'),
+        v.literal('longBreak'),
+      ),
+    ),
     timeLeft: v.number(),
     task: v.string(),
+    pomodoroCount: v.optional(v.number()), // Track completed pomodoros for auto long break
     lastSeen: v.number(),
   })
     .index('roomId', ['roomId'])
     .index('userId_roomId', ['userId', 'roomId']),
+
+  pomodoroSessions: defineTable({
+    roomId: v.id('rooms'),
+    userId: v.string(),
+    userName: v.string(),
+    timerType: v.union(
+      v.literal('pomodoro'),
+      v.literal('shortBreak'),
+      v.literal('longBreak'),
+    ),
+    duration: v.number(), // Duration in seconds
+    task: v.string(),
+    completedAt: v.number(), // Timestamp
+  })
+    .index('roomId', ['roomId'])
+    .index('userId', ['userId'])
+    .index('roomId_userId', ['roomId', 'userId']),
 })

@@ -15,12 +15,27 @@ import Header from '../components/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export const Route = createFileRoute('/rooms/$id')({
   component: RoomPage,
 })
 
 type TimerState = 'idle' | 'running' | 'paused'
+type TimerType = 'pomodoro' | 'shortBreak' | 'longBreak'
+
+// Timer durations in seconds
+const TIMER_DURATIONS: Record<TimerType, number> = {
+  pomodoro: 25 * 60, // 25 minutes
+  shortBreak: 5 * 60, // 5 minutes
+  longBreak: 15 * 60, // 15 minutes
+}
 
 // Memoized participant avatar component to prevent unnecessary re-renders
 const ParticipantAvatar = memo(
@@ -39,6 +54,7 @@ const ParticipantAvatar = memo(
       userInitial: string
       userAvatarUrl?: string
       timerState: TimerState
+      timerType: TimerType
       timeLeft: number
       task: string
     }
@@ -192,6 +208,7 @@ function RoomPage() {
   const updatePosition = useMutation(api.rooms.updatePosition)
   const updateTimer = useMutation(api.rooms.updateTimer)
   const updateTask = useMutation(api.rooms.updateTask)
+  const savePomodoroSession = useMutation(api.rooms.savePomodoroSession)
   const leaveRoom = useMutation(api.rooms.leaveRoom)
   const [joinCode, setJoinCode] = useState('')
   const [isJoining, setIsJoining] = useState(false)
@@ -206,11 +223,16 @@ function RoomPage() {
 
   // Pomodoro timer state
   const [timerState, setTimerState] = useState<TimerState>('idle')
-  const [timeLeft, setTimeLeft] = useState(25 * 60) // 25 minutes in seconds
+  const [timerType, setTimerType] = useState<TimerType>('pomodoro')
+  const [timeLeft, setTimeLeft] = useState(TIMER_DURATIONS.pomodoro)
   const [task, setTask] = useState('')
+  const [pomodoroCount, setPomodoroCount] = useState(0)
+  const [initialTime, setInitialTime] = useState(TIMER_DURATIONS.pomodoro) // Track initial time for session duration
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const taskDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const isTypingTaskRef = useRef(false)
+  const timerStateRef = useRef<TimerState>(timerState) // Track timer state in ref to avoid stale closures
+  const isUserControllingTimerRef = useRef(false) // Track if user is actively controlling the timer
 
   // Get current user's participant data
   const currentUserId = user?.id
@@ -259,18 +281,36 @@ function RoomPage() {
     if (currentParticipant && hasJoined) {
       // On initial join, sync everything
       if (!hasInitializedRef.current) {
+        // Query provides defaults, so timerType and pomodoroCount are always defined
         setTimeLeft(currentParticipant.timeLeft)
         setTimerState(currentParticipant.timerState)
+        setTimerType(currentParticipant.timerType)
         setTask(currentParticipant.task)
+        setPomodoroCount(currentParticipant.pomodoroCount)
+        setInitialTime(TIMER_DURATIONS[currentParticipant.timerType])
         hasInitializedRef.current = true
       } else {
-        // After initialization, only sync state changes (not timeLeft during countdown)
+        // After initialization, only sync state changes when:
+        // 1. Timer is idle (not user-controlled)
+        // 2. User is not actively controlling the timer
+        // 3. The state change came from the database (not from user action)
         if (
           currentParticipant.timerState !== timerState &&
-          timerState !== 'running'
+          timerState !== 'running' &&
+          !isUserControllingTimerRef.current
         ) {
           setTimerState(currentParticipant.timerState)
           setTimeLeft(currentParticipant.timeLeft)
+          timerStateRef.current = currentParticipant.timerState
+        }
+        // Sync timer type changes (query provides defaults)
+        if (currentParticipant.timerType !== timerType) {
+          setTimerType(currentParticipant.timerType)
+          setInitialTime(TIMER_DURATIONS[currentParticipant.timerType])
+        }
+        // Sync pomodoro count (query provides defaults)
+        if (currentParticipant.pomodoroCount !== pomodoroCount) {
+          setPomodoroCount(currentParticipant.pomodoroCount)
         }
         // Only sync task changes if user is not actively typing
         if (!isTypingTaskRef.current && currentParticipant.task !== task) {
@@ -278,10 +318,21 @@ function RoomPage() {
         }
       }
     }
-  }, [currentParticipant, hasJoined, timerState])
+  }, [currentParticipant, hasJoined, timerState, timerType, pomodoroCount, task])
 
-  // Handle timer countdown and sync to database
+  // Update ref whenever timerState changes
   useEffect(() => {
+    timerStateRef.current = timerState
+  }, [timerState])
+
+  // Handle timer countdown and sync to database, with auto-break logic
+  useEffect(() => {
+    // Clear any existing interval first
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+
     if (
       timerState === 'running' &&
       timeLeft > 0 &&
@@ -289,7 +340,21 @@ function RoomPage() {
       currentUserId
     ) {
       timerIntervalRef.current = setInterval(() => {
+        // Check if timer is still running (using ref to avoid stale closure)
+        if (timerStateRef.current !== 'running') {
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current)
+            timerIntervalRef.current = null
+          }
+          return
+        }
+
         setTimeLeft((prev) => {
+          // Double-check state before proceeding
+          if (timerStateRef.current !== 'running') {
+            return prev
+          }
+
           const newTime = prev <= 1 ? 0 : prev - 1
           // Sync to database every second
           updateTimer({
@@ -297,25 +362,91 @@ function RoomPage() {
             timerState: newTime === 0 ? 'idle' : 'running',
             timeLeft: newTime,
           }).catch(console.error)
+
           if (newTime === 0) {
-            setTimerState('idle')
+            // Timer completed - handle auto-break logic
+            const completedDuration = initialTime // Full duration was completed
+
+            // Save session (hasJoined is already checked in outer condition)
+            savePomodoroSession({
+              roomId: id as any,
+              timerType,
+              duration: completedDuration,
+              task,
+            }).catch(console.error)
+
+            // Auto-break logic
+            if (timerType === 'pomodoro') {
+              // Increment pomodoro count
+              const newPomodoroCount = pomodoroCount + 1
+              setPomodoroCount(newPomodoroCount)
+
+              // After 4 pomodoros, take long break, otherwise short break
+              const nextTimerType: TimerType = newPomodoroCount % 4 === 0 ? 'longBreak' : 'shortBreak'
+              const nextDuration = TIMER_DURATIONS[nextTimerType]
+
+              setTimerType(nextTimerType)
+              setTimeLeft(nextDuration)
+              setInitialTime(nextDuration)
+              setTimerState('running')
+              timerStateRef.current = 'running'
+
+              // Update database
+              updateTimer({
+                roomId: id as any,
+                timerState: 'running',
+                timerType: nextTimerType,
+                timeLeft: nextDuration,
+                pomodoroCount: newPomodoroCount,
+              }).catch(console.error)
+
+              toast.success(
+                newPomodoroCount % 4 === 0
+                  ? 'Pomodoro completed! Time for a long break 🎉'
+                  : 'Pomodoro completed! Time for a short break ☕',
+              )
+            } else {
+              // Break completed - return to pomodoro
+              setTimerType('pomodoro')
+              setTimeLeft(TIMER_DURATIONS.pomodoro)
+              setInitialTime(TIMER_DURATIONS.pomodoro)
+              setTimerState('idle')
+              timerStateRef.current = 'idle'
+
+              // Update database
+              updateTimer({
+                roomId: id as any,
+                timerState: 'idle',
+                timerType: 'pomodoro',
+                timeLeft: TIMER_DURATIONS.pomodoro,
+              }).catch(console.error)
+
+              toast.success('Break completed! Ready for next pomodoro 🍅')
+            }
           }
           return newTime
         })
       }, 1000)
-    } else {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current)
-        timerIntervalRef.current = null
-      }
     }
 
     return () => {
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
       }
     }
-  }, [timerState, timeLeft, hasJoined, currentUserId, id, updateTimer])
+  }, [
+    timerState,
+    hasJoined,
+    currentUserId,
+    id,
+    updateTimer,
+    timerType,
+    pomodoroCount,
+    initialTime,
+    task,
+    savePomodoroSession,
+  ])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -429,63 +560,171 @@ function RoomPage() {
 
   // Timer handlers
   const handleStart = async () => {
-    const newTime = timeLeft === 0 ? 25 * 60 : timeLeft
+    // Clear any existing interval first
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+
+    isUserControllingTimerRef.current = true
+    const newTime = timeLeft === 0 ? TIMER_DURATIONS[timerType] : timeLeft
     setTimeLeft(newTime)
+    setInitialTime(newTime)
     setTimerState('running')
+    timerStateRef.current = 'running'
     if (hasJoined) {
       await updateTimer({
         roomId: id as any,
         timerState: 'running',
+        timerType,
         timeLeft: newTime,
-      })
+      }).catch(console.error)
     }
+    // Reset flag after a short delay to allow database sync
+    setTimeout(() => {
+      isUserControllingTimerRef.current = false
+    }, 1000)
   }
 
   const handlePause = async () => {
+    if (timerState !== 'running') return // Only pause if running
+
+    isUserControllingTimerRef.current = true
+    // Clear interval immediately
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+
     setTimerState('paused')
+    timerStateRef.current = 'paused'
     if (hasJoined) {
       await updateTimer({
         roomId: id as any,
         timerState: 'paused',
+        timerType,
         timeLeft,
-      })
+      }).catch(console.error)
     }
+    // Reset flag after a short delay to allow database sync
+    setTimeout(() => {
+      isUserControllingTimerRef.current = false
+    }, 1000)
   }
 
   const handleResume = async () => {
+    if (timerState !== 'paused') return // Only resume if paused
+
+    isUserControllingTimerRef.current = true
     setTimerState('running')
+    timerStateRef.current = 'running'
     if (hasJoined) {
       await updateTimer({
         roomId: id as any,
         timerState: 'running',
+        timerType,
         timeLeft,
-      })
+      }).catch(console.error)
     }
+    // Reset flag after a short delay to allow database sync
+    setTimeout(() => {
+      isUserControllingTimerRef.current = false
+    }, 1000)
   }
 
   const handleStop = async () => {
-    setTimerState('idle')
-    const resetTime = 25 * 60
+    isUserControllingTimerRef.current = true
+    // Clear interval immediately
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+
+    // Calculate completed duration (initial time - current time left)
+    const completedDuration = initialTime - timeLeft
+
+    // Save session if timer was running and has meaningful duration
+    if (hasJoined && timerState === 'running' && completedDuration > 0) {
+      try {
+        await savePomodoroSession({
+          roomId: id as any,
+          timerType,
+          duration: completedDuration,
+          task,
+        })
+      } catch (error) {
+        console.error('Failed to save session:', error)
+      }
+    }
+
+    // Reset timer to current timer type's default duration
+    const resetTime = TIMER_DURATIONS[timerType]
     setTimeLeft(resetTime)
+    setInitialTime(resetTime)
+    setTimerState('idle')
+    timerStateRef.current = 'idle'
+
     if (hasJoined) {
       await updateTimer({
         roomId: id as any,
         timerState: 'idle',
+        timerType,
         timeLeft: resetTime,
-      })
+      }).catch(console.error)
     }
+    // Reset flag after a short delay to allow database sync
+    setTimeout(() => {
+      isUserControllingTimerRef.current = false
+    }, 1000)
   }
 
   const handleReset = async () => {
-    setTimerState('idle')
-    const resetTime = 25 * 60
+    isUserControllingTimerRef.current = true
+    // Clear interval immediately
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+
+    // Reset timer to current timer type's default duration
+    const resetTime = TIMER_DURATIONS[timerType]
     setTimeLeft(resetTime)
+    setInitialTime(resetTime)
+    setTimerState('idle')
+    timerStateRef.current = 'idle'
     if (hasJoined) {
       await updateTimer({
         roomId: id as any,
         timerState: 'idle',
+        timerType,
         timeLeft: resetTime,
-      })
+      }).catch(console.error)
+    }
+    // Reset flag after a short delay to allow database sync
+    setTimeout(() => {
+      isUserControllingTimerRef.current = false
+    }, 1000)
+  }
+
+  const handleTimerTypeChange = async (newType: TimerType) => {
+    // Only allow change if timer is idle
+    if (timerState !== 'idle') {
+      toast.error('Please stop the timer before changing type')
+      return
+    }
+
+    const newDuration = TIMER_DURATIONS[newType]
+    setTimerType(newType)
+    setTimeLeft(newDuration)
+    setInitialTime(newDuration)
+
+    if (hasJoined) {
+      await updateTimer({
+        roomId: id as any,
+        timerState: 'idle',
+        timerType: newType,
+        timeLeft: newDuration,
+      }).catch(console.error)
     }
   }
 
@@ -601,10 +840,55 @@ function RoomPage() {
                   className="text-sm"
                 />
 
+                {/* Timer type selector */}
+                <div className="flex items-center justify-center">
+                  <Select
+                    value={timerType}
+                    onValueChange={(value) =>
+                      handleTimerTypeChange(value as TimerType)
+                    }
+                    disabled={timerState !== 'idle'}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pomodoro">🍅 Pomodoro (25 min)</SelectItem>
+                      <SelectItem value="shortBreak">☕ Short Break (5 min)</SelectItem>
+                      <SelectItem value="longBreak">🌴 Long Break (15 min)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Pomodoro count badge */}
+                {timerType === 'pomodoro' && pomodoroCount > 0 && (
+                  <div className="flex items-center justify-center">
+                    <Badge variant="outline" className="text-xs">
+                      Completed: {pomodoroCount} pomodoro{pomodoroCount !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                )}
+
                 {/* Timer display */}
                 <div className="flex items-center justify-center gap-3">
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-100">
-                    <Hourglass className="h-4 w-4 text-emerald-600" />
+                  <div
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${
+                      timerType === 'pomodoro'
+                        ? 'bg-emerald-50 border-emerald-100'
+                        : timerType === 'shortBreak'
+                          ? 'bg-blue-50 border-blue-100'
+                          : 'bg-purple-50 border-purple-100'
+                    }`}
+                  >
+                    <Hourglass
+                      className={`h-4 w-4 ${
+                        timerType === 'pomodoro'
+                          ? 'text-emerald-600'
+                          : timerType === 'shortBreak'
+                            ? 'text-blue-600'
+                            : 'text-purple-600'
+                      }`}
+                    />
                     <span className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
                       {formatTime(timeLeft)}
                     </span>
@@ -617,7 +901,13 @@ function RoomPage() {
                     <Button
                       onClick={handleStart}
                       size="sm"
-                      className="bg-emerald-500 hover:bg-emerald-600"
+                      className={
+                        timerType === 'pomodoro'
+                          ? 'bg-emerald-500 hover:bg-emerald-600'
+                          : timerType === 'shortBreak'
+                            ? 'bg-blue-500 hover:bg-blue-600'
+                            : 'bg-purple-500 hover:bg-purple-600'
+                      }
                     >
                       <Play className="h-4 w-4" />
                       Start
@@ -640,7 +930,13 @@ function RoomPage() {
                       <Button
                         onClick={handleResume}
                         size="sm"
-                        className="bg-emerald-500 hover:bg-emerald-600"
+                        className={
+                          timerType === 'pomodoro'
+                            ? 'bg-emerald-500 hover:bg-emerald-600'
+                            : timerType === 'shortBreak'
+                              ? 'bg-blue-500 hover:bg-blue-600'
+                              : 'bg-purple-500 hover:bg-purple-600'
+                        }
                       >
                         <Play className="h-4 w-4" />
                         Resume

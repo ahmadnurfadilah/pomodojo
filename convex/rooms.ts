@@ -206,8 +206,10 @@ export const join = mutation({
         positionX: 50,
         positionY: 50,
         timerState: 'idle',
+        timerType: 'pomodoro',
         timeLeft: 25 * 60,
         task: '',
+        pomodoroCount: 0,
         lastSeen: Date.now(),
       })
 
@@ -246,8 +248,10 @@ export const getParticipants = query({
         positionX: p.positionX,
         positionY: p.positionY,
         timerState: p.timerState,
+        timerType: p.timerType ?? 'pomodoro', // Default for existing documents
         timeLeft: p.timeLeft,
         task: p.task,
+        pomodoroCount: p.pomodoroCount ?? 0, // Default for existing documents
       }))
     } catch (error) {
       console.error('Error getting participants:', error)
@@ -310,7 +314,15 @@ export const updateTimer = mutation({
       v.literal('running'),
       v.literal('paused'),
     ),
+    timerType: v.optional(
+      v.union(
+        v.literal('pomodoro'),
+        v.literal('shortBreak'),
+        v.literal('longBreak'),
+      ),
+    ),
     timeLeft: v.number(),
+    pomodoroCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     try {
@@ -332,11 +344,17 @@ export const updateTimer = mutation({
         throw new Error('Participant not found')
       }
 
-      await ctx.db.patch(participant._id, {
+      const updateData: any = {
         timerState: args.timerState,
         timeLeft: args.timeLeft,
         lastSeen: Date.now(),
-      })
+      }
+
+      // Always set timerType and pomodoroCount to ensure they exist
+      updateData.timerType = args.timerType ?? participant.timerType ?? 'pomodoro'
+      updateData.pomodoroCount = args.pomodoroCount ?? participant.pomodoroCount ?? 0
+
+      await ctx.db.patch(participant._id, updateData)
 
       return { success: true }
     } catch (error) {
@@ -382,6 +400,59 @@ export const updateTask = mutation({
       return { success: true }
     } catch (error) {
       console.error('Error updating task:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Save a pomodoro session when timer is stopped
+ */
+export const savePomodoroSession = mutation({
+  args: {
+    roomId: v.id('rooms'),
+    timerType: v.union(
+      v.literal('pomodoro'),
+      v.literal('shortBreak'),
+      v.literal('longBreak'),
+    ),
+    duration: v.number(), // Duration in seconds that was completed
+    task: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      const participant = await ctx.db
+        .query('roomParticipants')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (!participant) {
+        throw new Error('Participant not found')
+      }
+
+      // Save the session
+      await ctx.db.insert('pomodoroSessions', {
+        roomId: args.roomId,
+        userId,
+        userName: participant.userName,
+        timerType: args.timerType,
+        duration: args.duration,
+        task: args.task,
+        completedAt: Date.now(),
+      })
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error saving pomodoro session:', error)
       throw error
     }
   },
