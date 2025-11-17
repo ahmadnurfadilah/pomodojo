@@ -1,10 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   Check,
-  Headphones,
   Hourglass,
-  MessageCircle,
-  Music3,
+  MessageSquare,
   Pause,
   Shield,
   Sparkle,
@@ -39,7 +37,7 @@ function LandingPage() {
                 </h1>
                 <p className="text-sm sm:text-[15px] max-w-xl text-slate-700">
                   Pomodojo is a virtual co-working dojo where your avatar,
-                  timer, and music keep you accountable. Move around the room,
+                  timer, and chat keep you accountable. Move around the room,
                   set your rhythm, and train your focus together.
                 </p>
               </div>
@@ -188,13 +186,13 @@ function LandingPage() {
                           </div>
                         </div>
                         <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur bg-slate-50/80 border-slate-200/90">
-                          <Music3 className="size-4 text-emerald-700" />
+                          <MessageSquare className="size-4 text-emerald-700" />
                           <div className="flex flex-col">
                             <span className="text-[11px] text-slate-800">
-                              Lo-fi dojo beats
+                              Chat active
                             </span>
                             <span className="text-[10px] text-slate-500">
-                              Room soundtrack
+                              Press / to chat
                             </span>
                           </div>
                         </div>
@@ -206,7 +204,7 @@ function LandingPage() {
                         <div className="flex items-center gap-1.5 rounded-full border px-2 py-1 bg-slate-100/80 border-slate-300/80">
                           <span className="h-1.5 w-1.5 rounded-full animate-pulse bg-emerald-600"></span>
                           <span className="text-[10px] text-slate-700">
-                            Deep focus
+                            Timer running
                           </span>
                         </div>
                         <span className="hidden sm:inline text-[11px] text-slate-500">
@@ -215,10 +213,10 @@ function LandingPage() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button className="inline-flex h-7 w-7 items-center justify-center rounded-full border hover:border-slate-500 transition-colors bg-slate-100/80 border-slate-300/80 text-slate-700 hover:text-slate-950">
-                          <MessageCircle className="size-4" />
+                          <MessageSquare className="size-4" />
                         </button>
                         <button className="inline-flex h-7 w-7 items-center justify-center rounded-full border hover:border-slate-500 transition-colors bg-slate-100/80 border-slate-300/80 text-slate-700 hover:text-slate-950">
-                          <Headphones className="size-4" />
+                          <Hourglass className="size-4" />
                         </button>
                         <button className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 transition-colors text-slate-50 hover:bg-emerald-600">
                           <Pause className="size-4" />
@@ -320,8 +318,9 @@ function LandingPage() {
                   Your Pomodoro, their presence
                 </h3>
                 <p className="text-[13px] text-slate-700">
-                  Everyone runs their own timer with focus, break, and idle
-                  states — but you all move through the session together.
+                  Everyone runs their own timer with Pomodoro, short break, and
+                  long break cycles. After 4 pomodoros, take a long break
+                  automatically — but you all move through the session together.
                 </p>
               </div>
 
@@ -427,9 +426,10 @@ function LandingPage() {
                   Set your Pomodoro and drop in
                 </h3>
                 <p className="text-[13px] text-slate-700">
-                  Choose your focus and break lengths, write what you’re working
-                  on, and hit start. Your avatar broadcasts your status to the
-                  room.
+                  Choose Pomodoro (25 min), short break (5 min), or long break
+                  (15 min). Write what you're working on, and hit start. After 4
+                  pomodoros, automatically take a long break. Your avatar
+                  broadcasts your status to the room.
                 </p>
                 <div className="mt-2 rounded-xl border border-sky-100 bg-sky-50/40 p-3">
                   <div className="flex items-center justify-between mb-2">
@@ -437,7 +437,7 @@ function LandingPage() {
                       Your session
                     </span>
                     <span className="text-[11px] text-sky-600">
-                      Focus · 23:41
+                      Pomodoro · 23:41
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mb-2">
@@ -445,23 +445,13 @@ function LandingPage() {
                       <div className="h-full w-2/3 bg-sky-400 rounded-full"></div>
                     </div>
                     <span className="text-[10px] text-slate-500">
-                      2 cycles planned
+                      3 of 4 pomodoros
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-600">
-                    <span>“Refactor onboarding flow”</span>
+                    <span>"Refactor onboarding flow"</span>
                     <span className="inline-flex items-center gap-1 text-sky-500">
-                      <svg
-                        id="wave-icon"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      >
-                        <path d="M3 18s3-6 6-6 6 6 9 6 3-6 3-6"></path>
-                      </svg>
+                      <Hourglass className="h-3.5 w-3.5" />
                       visible to room
                     </span>
                   </div>
@@ -478,29 +468,34 @@ function LandingPage() {
                   </span>
                 </div>
                 <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
-                  Stack streaks &amp; celebrate wins
+                  Track sessions &amp; celebrate wins
                 </h3>
                 <p className="text-[13px] text-slate-700">
-                  As you focus, Pomodojo tracks your minutes, streaks, and “dojo
-                  rank” so the habit becomes its own game.
+                  As you focus, Pomodojo tracks your sessions, total focus time,
+                  and room leaderboard rankings so the habit becomes its own
+                  game.
                 </p>
                 <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[11px] text-slate-800 font-medium">
-                      This week
+                      Your stats
                     </span>
                     <span className="text-[11px] text-emerald-600">
-                      +3 day streak
+                      View details
                     </span>
                   </div>
                   <div className="flex items-center justify-between mb-1 text-[11px] text-slate-600">
-                    <span>Total focus minutes</span>
-                    <span className="font-semibold text-slate-900">486</span>
+                    <span>Total sessions</span>
+                    <span className="font-semibold text-slate-900">127</span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-600">
-                    <span>Dojo rank</span>
+                    <span>Total focus time</span>
+                    <span className="font-semibold text-slate-900">486m</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-600 mt-1">
+                    <span>Room leaderboard</span>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                      Top 12%
+                      #3
                     </span>
                   </div>
                 </div>
@@ -528,289 +523,112 @@ function LandingPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-emerald-100 bg-white p-5 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-100 shrink-0">
-                      <svg
-                        id="room-icon"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-emerald-500"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      >
-                        <rect x="3" y="6" width="7" height="12" rx="2"></rect>
-                        <rect x="14" y="6" width="7" height="8" rx="2"></rect>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
-                        Flexible rooms with just the right boundaries
-                      </h3>
-                      <p className="text-[13px] text-slate-700 mt-1.5">
-                        Create public dojos to co-work with the world, or
-                        private ones with access codes for your team, your study
-                        group, or your indie hacker friends.
-                      </p>
-                    </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+              <div className="rounded-2xl border border-emerald-100 bg-white p-5 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-100 shrink-0">
+                    <svg
+                      id="room-icon"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4 text-emerald-500"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    >
+                      <rect x="3" y="6" width="7" height="12" rx="2"></rect>
+                      <rect x="14" y="6" width="7" height="8" rx="2"></rect>
+                    </svg>
                   </div>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-900">
-                          Public rooms
-                        </span>
-                        <span className="text-slate-600">
-                          Discoverable and welcoming
-                        </span>
-                      </div>
-                      <span className="inline-flex h-6 px-2 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        Open
-                      </span>
-                    </div>
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-900">
-                          Private dojos
-                        </span>
-                        <span className="text-slate-600">
-                          Invite-only with access code
-                        </span>
-                      </div>
-                      <span className="inline-flex h-6 px-2 items-center justify-center rounded-full bg-slate-900 text-white text-[10px]">
-                        Code: 8WY4
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-sky-100 bg-white p-5 hover:border-sky-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-sky-50 border border-sky-100 shrink-0">
-                      <svg
-                        id="avatar-icon"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-sky-500"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      >
-                        <circle cx="12" cy="8" r="4"></circle>
-                        <path d="M5 20a7 7 0 0 1 14 0"></path>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
-                        Avatars that move with you
-                      </h3>
-                      <p className="text-[13px] text-slate-700 mt-1.5">
-                        Drag your avatar around the room as you settle in,
-                        stretch, or move into deep focus. Everyone sees changes
-                        instantly, like a subtle, playful body language.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2 flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-3">
-                      <div className="flex -space-x-1.5">
-                        <div className="h-6 w-6 rounded-full bg-emerald-100 border border-white flex items-center justify-center text-[10px]">
-                          F
-                        </div>
-                        <div className="h-6 w-6 rounded-full bg-emerald-100 border border-white flex items-center justify-center text-[10px]">
-                          B
-                        </div>
-                        <div className="h-6 w-6 rounded-full bg-sky-100 border border-white flex items-center justify-center text-[10px]">
-                          I
-                        </div>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-slate-800">
-                          Statuses: focusing, break, idle
-                        </span>
-                        <span className="text-slate-600">
-                          Everyone knows the room’s energy at a glance.
-                        </span>
-                      </div>
-                    </div>
+                  <div>
+                    <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
+                      Flexible rooms with just the right boundaries
+                    </h3>
+                    <p className="text-[13px] text-slate-700 mt-1.5">
+                      Create public dojos to co-work with the world, or private
+                      ones with access codes for your team, your study group, or
+                      your indie hacker friends.
+                    </p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-amber-100 bg-white p-5 hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-amber-50 border border-amber-100 shrink-0">
-                      <svg
-                        id="music-icon"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-amber-500"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      >
-                        <path d="M9 18V5l12-2v13"></path>
-                        <circle cx="6" cy="18" r="3"></circle>
-                        <circle cx="18" cy="16" r="3"></circle>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
-                        One soundtrack for everyone (with your own volume)
-                      </h3>
-                      <p className="text-[13px] text-slate-700 mt-1.5">
-                        Room owners choose the playlist; music stays in sync for
-                        everyone. You keep full control over your own volume or
-                        mute — no surprises.
-                      </p>
-                    </div>
+              <div className="rounded-2xl border border-sky-100 bg-white p-5 hover:border-sky-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-sky-50 border border-sky-100 shrink-0">
+                    <svg
+                      id="avatar-icon"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4 text-sky-500"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    >
+                      <circle cx="12" cy="8" r="4"></circle>
+                      <path d="M5 20a7 7 0 0 1 14 0"></path>
+                    </svg>
                   </div>
-                  <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/50 p-3 flex flex-col gap-2">
-                    <div className="flex items-center justify-between text-[11px] text-slate-800 mb-1">
-                      <span>“Ocean Side Deep Focus” · curated mix</span>
-                      <span className="inline-flex items-center gap-1 text-amber-600">
-                        <svg
-                          id="users-music-icon"
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-3.5 w-3.5"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.5"
-                        >
-                          <path d="M16 21v-2a4 4 0 0 0-3-3.87"></path>
-                          <path d="M7 21v-2a4 4 0 0 1 3-3.87"></path>
-                          <circle cx="9" cy="7" r="4"></circle>
-                          <circle cx="17" cy="7" r="4"></circle>
-                        </svg>
-                        synced to room
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <button className="h-6 w-6 flex items-center justify-center rounded-full bg-white/80 border border-amber-100 hover:bg-white">
-                          <svg
-                            id="rewind-icon"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-3.5 w-3.5 text-amber-500"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                          >
-                            <polygon points="11 19 2 12 11 5 11 19"></polygon>
-                            <polygon points="22 19 13 12 22 5 22 19"></polygon>
-                          </svg>
-                        </button>
-                        <button className="h-7 w-7 flex items-center justify-center rounded-full bg-amber-500 text-white shadow-sm hover:bg-amber-600">
-                          <svg
-                            id="pause-icon"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-3.5 w-3.5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                          >
-                            <rect x="6" y="4" width="4" height="16"></rect>
-                            <rect x="14" y="4" width="4" height="16"></rect>
-                          </svg>
-                        </button>
-                        <button className="h-6 w-6 flex items-center justify-center rounded-full bg-white/80 border border-amber-100 hover:bg-white">
-                          <svg
-                            id="forward-icon"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-3.5 w-3.5 text-amber-500"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                          >
-                            <polygon points="13 19 22 12 13 5 13 19"></polygon>
-                            <polygon points="2 19 11 12 2 5 2 19"></polygon>
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="flex-1 flex items-center gap-2">
-                        <div className="flex-1 h-1.5 rounded-full bg-amber-100 overflow-hidden">
-                          <div className="h-full w-1/2 bg-amber-400 rounded-full"></div>
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                          <svg
-                            id="volume-icon"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-3.5 w-3.5 text-amber-500"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                          >
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                            <path d="M19 5a7 7 0 0 1 0 14"></path>
-                          </svg>
-                          <span>your volume</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div>
+                    <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
+                      Avatars that move with you
+                    </h3>
+                    <p className="text-[13px] text-slate-700 mt-1.5">
+                      Drag your avatar around the room as you settle in,
+                      stretch, or move into deep focus. Your avatar shows your
+                      timer state, task, and time left. Everyone sees changes
+                      instantly, like a subtle, playful body language.
+                    </p>
                   </div>
                 </div>
+              </div>
 
-                <div className="rounded-2xl border border-emerald-100 bg-white p-5 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-100 shrink-0">
-                      <svg
-                        id="stats-icon"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-emerald-500"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      >
-                        <line x1="9" y1="19" x2="9" y2="5"></line>
-                        <line x1="15" y1="19" x2="15" y2="10"></line>
-                        <line x1="3" y1="19" x2="21" y2="19"></line>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
-                        Profiles that reward consistency, not hustle
-                      </h3>
-                      <p className="text-[13px] text-slate-700 mt-1.5">
-                        Track your total minutes, streaks, and rooms joined. A
-                        soft leaderboard gives you a nudge without turning focus
-                        into pressure.
-                      </p>
-                    </div>
+              <div className="rounded-2xl border border-sky-100 bg-white p-5 hover:border-sky-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-sky-50 border border-sky-100 shrink-0">
+                    <MessageSquare className="h-4 w-4 text-sky-500" />
                   </div>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px]">
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 flex flex-col">
-                      <span className="text-slate-600 mb-1">Total focus</span>
-                      <span className="text-[18px] font-semibold tracking-tight text-slate-900">
-                        12,842
-                      </span>
-                      <span className="text-slate-500">minutes logged</span>
-                    </div>
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 flex flex-col">
-                      <span className="text-slate-600 mb-1">Best streak</span>
-                      <span className="text-[18px] font-semibold tracking-tight text-slate-900">
-                        9 days
-                      </span>
-                      <span className="text-slate-500">
-                        no skipped sessions
-                      </span>
-                    </div>
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 flex flex-col">
-                      <span className="text-slate-600 mb-1">Dojo rank</span>
-                      <span className="text-[18px] font-semibold tracking-tight text-emerald-600">
-                        Dojo Master
-                      </span>
-                      <span className="text-slate-500">top 5% of rooms</span>
-                    </div>
+                  <div>
+                    <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
+                      Chat with live cursor tracking
+                    </h3>
+                    <p className="text-[13px] text-slate-700 mt-1.5">
+                      Press "/" to activate chat mode. Your cursor moves across
+                      the room as you type, showing others what you're working
+                      on. Messages appear at your cursor position for a natural,
+                      spatial conversation.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-100 bg-white p-5 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-100 shrink-0">
+                    <svg
+                      id="stats-icon"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4 text-emerald-500"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    >
+                      <line x1="9" y1="19" x2="9" y2="5"></line>
+                      <line x1="15" y1="19" x2="15" y2="10"></line>
+                      <line x1="3" y1="19" x2="21" y2="19"></line>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-[16px] font-semibold tracking-tight text-slate-900">
+                      Statistics that reward consistency, not hustle
+                    </h3>
+                    <p className="text-[13px] text-slate-700 mt-1.5">
+                      View your personal statistics with session history, total
+                      focus time, and room leaderboard rankings. A soft
+                      leaderboard gives you a nudge without turning focus into
+                      pressure.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -841,11 +659,11 @@ function LandingPage() {
               <div className="group rounded-2xl border border-emerald-100 bg-white overflow-hidden hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 flex flex-col">
                 <div className="relative h-32 overflow-hidden">
                   <img
-                    src="https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&amp;fit=crop&amp;w=800&amp;q=80"
+                    src="/assets/images/bg/zen-garden.webp"
                     className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-200"
                     alt="Zen Garden"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-emerald-700/40 via-transparent to-transparent"></div>
+                  <div className="absolute inset-0 bg-linear-to-t from-emerald-700/40 via-transparent to-transparent"></div>
                   <div className="absolute bottom-2 left-2 px-2 py-1 rounded-full bg-emerald-900/70 text-[11px] text-emerald-50 flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-300"></span>
                     Zen Garden
@@ -873,11 +691,11 @@ function LandingPage() {
               <div className="group rounded-2xl border border-amber-100 bg-white overflow-hidden hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 flex flex-col">
                 <div className="relative h-32 overflow-hidden">
                   <img
-                    src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&amp;fit=crop&amp;w=800&amp;q=80"
+                    src="/assets/images/bg/midnight-cafe.webp"
                     className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-200"
                     alt="Midnight Café"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-amber-900/50 via-transparent to-transparent"></div>
+                  <div className="absolute inset-0 bg-linear-to-t from-amber-900/50 via-transparent to-transparent"></div>
                   <div className="absolute bottom-2 left-2 px-2 py-1 rounded-full bg-amber-900/70 text-[11px] text-amber-50 flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-300"></span>
                     Midnight Café
@@ -905,11 +723,11 @@ function LandingPage() {
               <div className="group rounded-2xl border border-sky-100 bg-white overflow-hidden hover:border-sky-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 flex flex-col">
                 <div className="relative h-32 overflow-hidden">
                   <img
-                    src="https://hoirqrkdgbmvpwutwuwj.supabase.co/storage/v1/object/public/assets/assets/917d6f93-fb36-439a-8c48-884b67b35381_1600w.jpg"
+                    src="/assets/images/bg/cyber-loft.webp"
                     className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-200"
                     alt="Cyber Loft"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-sky-900/60 via-transparent to-transparent"></div>
+                  <div className="absolute inset-0 bg-linear-to-t from-sky-900/60 via-transparent to-transparent"></div>
                   <div className="absolute bottom-2 left-2 px-2 py-1 rounded-full bg-sky-900/70 text-[11px] text-sky-50 flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-sky-300"></span>
                     Cyber Loft
@@ -1070,7 +888,11 @@ function LandingPage() {
                 </div>
 
                 <div className="w-full max-w-xs sm:max-w-sm lg:max-w-xs relative aspect-video">
-                  <img src="/assets/images/ninja/3.webp" alt="Ninja" className="absolute -bottom-40 right-0 w-full group-hover:-bottom-24 transition-all duration-300" />
+                  <img
+                    src="/assets/images/ninja/3.webp"
+                    alt="Ninja"
+                    className="absolute -bottom-40 right-0 w-full group-hover:-bottom-24 transition-all duration-300"
+                  />
                 </div>
               </div>
             </div>
