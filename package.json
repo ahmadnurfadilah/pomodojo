@@ -13,6 +13,7 @@
     "start": "node --import ./.output/server/instrument.server.mjs .output/server/index.mjs"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.55.0",
     "@convex-dev/react-query": "0.0.0-alpha.11",
     "@faker-js/faker": "^10.0.0",
     "@radix-ui/react-label": "^2.1.8",

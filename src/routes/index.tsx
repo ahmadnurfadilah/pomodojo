@@ -1,40 +1,10 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { ArrowRight, Music, Play, Sparkles, Timer, Users } from 'lucide-react'
+import { useQuery } from 'convex/react'
+import { api } from '../../convex/_generated/api'
 import { Button } from '@/components/ui/button'
 
 export const Route = createFileRoute('/')({ component: LandingPage })
-
-// Mock data for active rooms - will be replaced with Convex query later
-const mockRooms = [
-  {
-    id: '1',
-    name: 'Zen Garden',
-    theme: '🪷',
-    activeUsers: 12,
-    owner: 'Alex',
-  },
-  {
-    id: '2',
-    name: 'Midnight Café',
-    theme: '☕️',
-    activeUsers: 8,
-    owner: 'Sam',
-  },
-  {
-    id: '3',
-    name: 'Cyber Loft',
-    theme: '💻',
-    activeUsers: 15,
-    owner: 'Jordan',
-  },
-  {
-    id: '4',
-    name: 'Outer Space',
-    theme: '🚀',
-    activeUsers: 5,
-    owner: 'Casey',
-  },
-]
 
 const features = [
   {
@@ -64,6 +34,11 @@ const features = [
 ]
 
 function LandingPage() {
+  const rooms = useQuery(api.rooms.list)
+
+  // Get first 4 rooms for display
+  const featuredRooms = rooms?.slice(0, 4) || []
+
   return (
     <div className="min-h-screen bg-linear-to-b from-amber-50 via-orange-50 to-amber-50">
       {/* Hero Section */}
@@ -189,29 +164,54 @@ function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {mockRooms.map((room) => (
-              <Link key={room.id} to="/rooms" className="group">
-                <div className="bg-white rounded-2xl p-6 border border-orange-100 shadow-sm hover:shadow-xl hover:border-orange-300 transition-all duration-300 h-full">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="text-4xl">{room.theme}</div>
-                    <div className="flex items-center gap-1 text-sm text-gray-500">
-                      <Users className="w-4 h-4" />
-                      <span className="font-medium">{room.activeUsers}</span>
+            {rooms === undefined ? (
+              // Loading state
+              Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-2xl p-6 border border-orange-100 shadow-sm animate-pulse"
+                >
+                  <div className="h-12 bg-gray-200 rounded mb-4"></div>
+                  <div className="h-6 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                </div>
+              ))
+            ) : featuredRooms.length > 0 ? (
+              featuredRooms.map((room: { id: string; theme: string; name: string; maxUsers?: number; visibility: string }) => (
+                <Link
+                  key={room.id}
+                  to="/rooms/$id"
+                  params={{ id: room.id }}
+                  className="group"
+                >
+                  <div className="bg-white rounded-2xl p-6 border border-orange-100 shadow-sm hover:shadow-xl hover:border-orange-300 transition-all duration-300 h-full">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="text-4xl">{room.theme}</div>
+                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                        <Users className="w-4 h-4" />
+                        <span className="font-medium">
+                          {room.maxUsers ? `Max ${room.maxUsers}` : '∞'}
+                        </span>
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-orange-600 transition-colors">
+                      {room.name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      {room.visibility === 'public' ? 'Public Room' : 'Private Room'}
+                    </p>
+                    <div className="flex items-center text-orange-600 font-medium text-sm group-hover:gap-2 transition-all">
+                      Join Room
+                      <ArrowRight className="ml-1 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-orange-600 transition-colors">
-                    {room.name}
-                  </h3>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Hosted by {room.owner}
-                  </p>
-                  <div className="flex items-center text-orange-600 font-medium text-sm group-hover:gap-2 transition-all">
-                    Join Room
-                    <ArrowRight className="ml-1 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-8 text-gray-500">
+                No rooms available yet. Be the first to create one!
+              </div>
+            )}
           </div>
 
           <div className="text-center mt-12">
