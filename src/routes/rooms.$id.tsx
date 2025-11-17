@@ -1,12 +1,20 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { SignInButton, useUser } from '@clerk/clerk-react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import { SignInButton, UserButton, useUser } from '@clerk/clerk-react'
 import {
   Authenticated,
   Unauthenticated,
   useMutation,
   useQuery,
 } from 'convex/react'
-import { Hourglass, LogIn, Pause, Play, RotateCcw, Square } from 'lucide-react'
+import {
+  Hourglass,
+  LogIn,
+  Pause,
+  Play,
+  RotateCcw,
+  Settings,
+  Square,
+} from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { motion } from 'motion/react'
@@ -22,6 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { CreateRoomForm } from '@/components/create-room-form'
+import Logo from '@/components/logo'
 
 export const Route = createFileRoute('/rooms/$id')({
   component: RoomPage,
@@ -83,8 +100,12 @@ const ParticipantAvatar = memo(
           scale: isHovered ? 1.05 : 1,
         }}
         transition={{
-          left: shouldTransition ? { duration: 0.3, ease: 'easeOut' } : { duration: 0 },
-          top: shouldTransition ? { duration: 0.3, ease: 'easeOut' } : { duration: 0 },
+          left: shouldTransition
+            ? { duration: 0.3, ease: 'easeOut' }
+            : { duration: 0 },
+          top: shouldTransition
+            ? { duration: 0.3, ease: 'easeOut' }
+            : { duration: 0 },
           x: { duration: 0 },
           y: { duration: 0 },
           scale: { duration: 0.2, ease: 'easeOut' },
@@ -113,7 +134,10 @@ const ParticipantAvatar = memo(
                   backfaceVisibility: 'hidden',
                 }}
               >
-                <Badge variant="secondary" className="bg-emerald-500 text-white">
+                <Badge
+                  variant="secondary"
+                  className="bg-emerald-500 text-white"
+                >
                   <Hourglass />
                   {formatTime(participant.timeLeft)}
                 </Badge>
@@ -210,9 +234,19 @@ function RoomPage() {
   const updateTask = useMutation(api.rooms.updateTask)
   const savePomodoroSession = useMutation(api.rooms.savePomodoroSession)
   const leaveRoom = useMutation(api.rooms.leaveRoom)
+  const updateRoom = useMutation(api.rooms.update)
   const [joinCode, setJoinCode] = useState('')
   const [isJoining, setIsJoining] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [formData, setFormData] = useState({
+    name: '',
+    visibility: 'public' as 'public' | 'private',
+    theme: '🪷',
+    musicUrl: '',
+    maxUsers: undefined as number | undefined,
+  })
 
   // Avatar position state - use local state for smooth dragging
   const [isDragging, setIsDragging] = useState(false)
@@ -318,7 +352,14 @@ function RoomPage() {
         }
       }
     }
-  }, [currentParticipant, hasJoined, timerState, timerType, pomodoroCount, task])
+  }, [
+    currentParticipant,
+    hasJoined,
+    timerState,
+    timerType,
+    pomodoroCount,
+    task,
+  ])
 
   // Update ref whenever timerState changes
   useEffect(() => {
@@ -382,7 +423,8 @@ function RoomPage() {
               setPomodoroCount(newPomodoroCount)
 
               // After 4 pomodoros, take long break, otherwise short break
-              const nextTimerType: TimerType = newPomodoroCount % 4 === 0 ? 'longBreak' : 'shortBreak'
+              const nextTimerType: TimerType =
+                newPomodoroCount % 4 === 0 ? 'longBreak' : 'shortBreak'
               const nextDuration = TIMER_DURATIONS[nextTimerType]
 
               setTimerType(nextTimerType)
@@ -535,7 +577,7 @@ function RoomPage() {
       const x = ((e.clientX - rect.left) / rect.width) * 100
       const y = ((e.clientY - rect.top) / rect.height) * 100
 
-      // Constrain to container bounds
+      // Constrain to containerr bounds
       const constrainedX = Math.max(5, Math.min(95, x))
       const constrainedY = Math.max(5, Math.min(95, y))
 
@@ -762,6 +804,47 @@ function RoomPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }, [])
 
+  // Initialize form data when room loads or dialog opens
+  useEffect(() => {
+    if (room && isSettingsDialogOpen) {
+      setFormData({
+        name: room.name,
+        visibility: room.visibility,
+        theme: room.theme,
+        musicUrl: room.musicUrl || '',
+        maxUsers: room.maxUsers,
+      })
+    }
+  }, [room, isSettingsDialogOpen])
+
+  const handleUpdateRoom = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!room) return
+
+    setIsUpdating(true)
+    try {
+      await updateRoom({
+        roomId: room.id,
+        name: formData.name,
+        visibility: formData.visibility,
+        theme: formData.theme,
+        musicUrl: formData.musicUrl || undefined,
+        maxUsers: formData.maxUsers || undefined,
+      })
+
+      setIsSettingsDialogOpen(false)
+      toast.success('Room updated successfully')
+    } catch (error) {
+      console.error('Failed to update room:', error)
+      toast.error('Failed to update room. Please try again.')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  // Check if current user is the room owner
+  const isRoomOwner = room && user && room.ownerId === user.id
+
   if (room === undefined) {
     return (
       <div className="min-h-screen bg-linear-to-b from-slate-50 via-slate-50 to-slate-50 flex items-center justify-center">
@@ -792,6 +875,33 @@ function RoomPage() {
   if (hasJoined && participants !== undefined) {
     return (
       <div className="fixed inset-0 overflow-hidden">
+        <div className="fixed z-10 inset-x-0 top-4">
+          <div className="container mx-auto px-4">
+            <div className="bg-white/80 backdrop-blur-sm rounded-full border border-slate-950 h-14 flex items-center justify-between px-4 shadow-lg">
+              <div>
+                <Link to="/" className="flex items-center gap-1">
+                  <Logo className="h-6" />
+                  <span className="text-sm font-semibold tracking-tight">
+                    Pomodojo
+                  </span>
+                </Link>
+              </div>
+              <div className="flex items-center gap-5">
+                {isRoomOwner && (
+                  <button
+                    onClick={() => setIsSettingsDialogOpen(true)}
+                    className="p-2 rounded-lg hover:bg-white/60 transition-colors"
+                    aria-label="Room settings"
+                  >
+                    <Settings className="size-5" />
+                  </button>
+                )}
+                <UserButton />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Background image */}
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -853,9 +963,15 @@ function RoomPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pomodoro">🍅 Pomodoro (25 min)</SelectItem>
-                      <SelectItem value="shortBreak">☕ Short Break (5 min)</SelectItem>
-                      <SelectItem value="longBreak">🌴 Long Break (15 min)</SelectItem>
+                      <SelectItem value="pomodoro">
+                        🍅 Pomodoro (25 min)
+                      </SelectItem>
+                      <SelectItem value="shortBreak">
+                        ☕ Short Break (5 min)
+                      </SelectItem>
+                      <SelectItem value="longBreak">
+                        🌴 Long Break (15 min)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -864,7 +980,8 @@ function RoomPage() {
                 {timerType === 'pomodoro' && pomodoroCount > 0 && (
                   <div className="flex items-center justify-center">
                     <Badge variant="outline" className="text-xs">
-                      Completed: {pomodoroCount} pomodoro{pomodoroCount !== 1 ? 's' : ''}
+                      Completed: {pomodoroCount} pomodoro
+                      {pomodoroCount !== 1 ? 's' : ''}
                     </Badge>
                   </div>
                 )}
@@ -952,6 +1069,43 @@ function RoomPage() {
             </div>
           </div>
         </div>
+
+        {/* Settings Dialog */}
+        {isRoomOwner && (
+          <Dialog
+            open={isSettingsDialogOpen}
+            onOpenChange={setIsSettingsDialogOpen}
+          >
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-[22px] font-semibold tracking-tight text-slate-900">
+                  Edit Your Dojo
+                </DialogTitle>
+                <DialogDescription className="text-[13px] text-slate-700">
+                  Update your focus space settings and preferences.
+                </DialogDescription>
+              </DialogHeader>
+              <CreateRoomForm
+                formData={formData}
+                setFormData={setFormData}
+                onSubmit={handleUpdateRoom}
+                isCreating={isUpdating}
+                isEditing={true}
+                onCancel={() => {
+                  setIsSettingsDialogOpen(false)
+                  // Reset form data to current room values
+                  setFormData({
+                    name: room.name,
+                    visibility: room.visibility,
+                    theme: room.theme,
+                    musicUrl: room.musicUrl || '',
+                    maxUsers: room.maxUsers,
+                  })
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     )
   }
