@@ -523,7 +523,7 @@ function LandingPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               <div className="rounded-2xl border border-emerald-100 bg-white p-5 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
                 <div className="flex items-start gap-3 mb-3">
                   <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-100 shrink-0">
