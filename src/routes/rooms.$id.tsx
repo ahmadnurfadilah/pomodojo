@@ -59,11 +59,9 @@ const ParticipantAvatar = memo(
         className={`absolute select-none origin-center ${
           isCurrentUser ? 'cursor-move' : ''
         }`}
-        style={{
+        animate={{
           left: `${displayPosition.x}%`,
           top: `${displayPosition.y}%`,
-        }}
-        animate={{
           x: '-50%',
           y: '-50%',
           scale: isHovered ? 1.05 : 1,
@@ -223,8 +221,18 @@ function RoomPage() {
   // Automatically set hasJoined to true if user is already a participant (e.g., after page refresh)
   // Also refresh their presence by calling joinRoom to update lastSeen
   useEffect(() => {
-    if (currentParticipant && !hasJoined && user && room) {
-      // User is already a participant, just refresh their presence
+    // Only run when participants query has loaded (not undefined) and user is already a participant
+    if (
+      participants !== undefined &&
+      currentParticipant &&
+      !hasJoined &&
+      user &&
+      room
+    ) {
+      // Set hasJoined immediately since user is already a participant
+      setHasJoined(true)
+
+      // Refresh their presence by calling joinRoom to update lastSeen
       const userInitial =
         user.firstName?.[0] || user.emailAddresses[0]?.emailAddress[0] || 'U'
       const userName =
@@ -238,17 +246,12 @@ function RoomPage() {
         userName,
         userInitial: userInitial.toUpperCase(),
         userAvatarUrl: user.imageUrl,
+      }).catch((error) => {
+        console.error('Failed to refresh presence:', error)
+        // hasJoined is already set, so user can still use the room
       })
-        .then(() => {
-          setHasJoined(true)
-        })
-        .catch((error) => {
-          console.error('Failed to refresh presence:', error)
-          // Still set hasJoined to true even if refresh fails
-          setHasJoined(true)
-        })
     }
-  }, [currentParticipant, hasJoined, user, room, id, joinRoom])
+  }, [participants, currentParticipant, hasJoined, user, room, id, joinRoom])
 
   // Sync local state with participant data when it changes (only on initial join or state changes, not during countdown)
   const hasInitializedRef = useRef(false)
