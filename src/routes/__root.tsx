@@ -7,8 +7,6 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { ClerkProvider } from '@clerk/clerk-react'
 
-import Header from '../components/Header'
-
 import ConvexProvider from '../integrations/convex/provider'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
@@ -58,10 +56,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="min-h-screen antialiased bg-slate-50 text-slate-950">
         <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
           <ConvexProvider>
-            <Header />
             {children}
             <TanStackDevtools
               config={{
