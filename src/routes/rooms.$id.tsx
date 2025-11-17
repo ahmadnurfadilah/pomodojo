@@ -9,10 +9,12 @@ import {
 import { Hourglass, LogIn, Pause, Play, RotateCcw, Square } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { motion } from 'motion/react'
 import { api } from '../../convex/_generated/api'
 import Header from '../components/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 
 export const Route = createFileRoute('/rooms/$id')({
   component: RoomPage,
@@ -46,76 +48,135 @@ const ParticipantAvatar = memo(
     formatTime: (seconds: number) => string
     isDragging: boolean
   }) => {
+    const [isHovered, setIsHovered] = useState(false)
     // Only show timer & task when timer is running
     const showTimerInfo = participant.timerState === 'running'
     // Add smooth transition for other users, but not for current user while dragging
     const shouldTransition = !isCurrentUser || !isDragging
 
     return (
-      <div
-        className={`absolute select-none ${
-          isCurrentUser ? 'cursor-move hover:scale-105' : ''
+      <motion.div
+        className={`absolute select-none origin-center ${
+          isCurrentUser ? 'cursor-move' : ''
         }`}
         style={{
           left: `${displayPosition.x}%`,
           top: `${displayPosition.y}%`,
-          transform: 'translate(-50%, -50%)',
-          transition: shouldTransition
-            ? 'left 0.3s ease-out, top 0.3s ease-out'
-            : 'none',
+        }}
+        animate={{
+          x: '-50%',
+          y: '-50%',
+          scale: isHovered ? 1.05 : 1,
+        }}
+        transition={{
+          left: shouldTransition ? { duration: 0.3, ease: 'easeOut' } : { duration: 0 },
+          top: shouldTransition ? { duration: 0.3, ease: 'easeOut' } : { duration: 0 },
+          x: { duration: 0 },
+          y: { duration: 0 },
+          scale: { duration: 0.2, ease: 'easeOut' },
         }}
         onMouseDown={onMouseDown}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         <div className="flex flex-col items-center gap-1">
           {/* Timer and task display above avatar - only when timer is running */}
           {showTimerInfo && (
-            <div className="mb-2 px-2 py-1 rounded-lg bg-white/95 backdrop-blur-sm border border-white/50 shadow-lg min-w-[120px]">
-              {participant.task && (
-                <div className="text-[10px] font-medium text-slate-800 truncate mb-1">
-                  {participant.task}
-                </div>
-              )}
-              <div className="flex items-center gap-1 justify-center">
-                <Hourglass className="h-3 w-3 text-emerald-600" />
-                <span className="text-xs font-semibold tracking-tight text-slate-900 tabular-nums">
+            <div className="relative h-6 perspective-1000">
+              {/* Front side - Time Left (default) */}
+              <motion.div
+                className="absolute inset-0 flex flex-col items-center gap-1"
+                animate={{
+                  rotateY: isHovered && participant.task ? 180 : 0,
+                  opacity: isHovered && participant.task ? 0 : 1,
+                }}
+                transition={{
+                  duration: 0.4,
+                  ease: 'easeInOut',
+                }}
+                style={{
+                  transformStyle: 'preserve-3d',
+                  backfaceVisibility: 'hidden',
+                }}
+              >
+                <Badge variant="secondary" className="bg-emerald-500 text-white">
+                  <Hourglass />
                   {formatTime(participant.timeLeft)}
-                </span>
-              </div>
+                </Badge>
+              </motion.div>
+
+              {/* Back side - Task Info (on hover) */}
+              {participant.task && (
+                <motion.div
+                  className="absolute inset-0 flex flex-col items-center gap-1"
+                  animate={{
+                    rotateY: isHovered ? 0 : -180,
+                    opacity: isHovered ? 1 : 0,
+                  }}
+                  transition={{
+                    duration: 0.4,
+                    ease: 'easeInOut',
+                  }}
+                  style={{
+                    transformStyle: 'preserve-3d',
+                    backfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                  }}
+                >
+                  <div className="border border-slate-950 bg-white px-1 py-0.5 rounded-lg text-[10px] text-slate-950 whitespace-nowrap">
+                    {participant.task}
+                  </div>
+                </motion.div>
+              )}
             </div>
           )}
 
           {/* Avatar */}
-          <div className="relative">
-            {participant.userAvatarUrl ? (
-              <img
-                src={participant.userAvatarUrl}
-                alt={participant.userName}
-                className="h-12 w-12 rounded-2xl border-2 border-white shadow-lg object-cover backdrop-blur-sm pointer-events-none"
-              />
-            ) : (
-              <div
-                className={`h-12 w-12 rounded-2xl border-2 border-white shadow-lg flex items-center justify-center backdrop-blur-sm ${
-                  isCurrentUser ? 'bg-emerald-500/90' : 'bg-blue-500/90'
-                }`}
-              >
-                <span className="text-lg font-semibold tracking-tight text-white">
-                  {participant.userInitial}
-                </span>
-              </div>
-            )}
+          <motion.div
+            className="relative"
+            animate={{
+              scale: isHovered ? 1.05 : 1,
+            }}
+            transition={{
+              duration: 0.2,
+              ease: 'easeOut',
+            }}
+          >
             {participant.timerState === 'running' && (
-              <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></div>
+              <div className="absolute z-10 top-0 right-0 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></div>
             )}
-          </div>
 
-          {/* User name */}
-          <div className="px-2 py-1 rounded-lg bg-white/90 backdrop-blur-sm border border-white/50 shadow-sm">
-            <span className="text-[10px] font-medium text-slate-800">
-              {participant.userName}
-            </span>
-          </div>
+            <div
+              className={`relative w-20 aspect-5/6 mask mask-squircle-long p-0.5 bg-slate-950`}
+            >
+              <div className="relative w-full mask mask-squircle">
+                {participant.userAvatarUrl ? (
+                  <img
+                    src={participant.userAvatarUrl}
+                    alt={participant.userName}
+                    className="w-full h-full object-cover backdrop-blur-sm pointer-events-none"
+                  />
+                ) : (
+                  <div
+                    className={`w-full h-full flex items-center justify-center backdrop-blur-sm ${
+                      isCurrentUser ? 'bg-emerald-500/90' : 'bg-blue-500/90'
+                    }`}
+                  >
+                    <span className="text-lg font-semibold tracking-tight text-white">
+                      {participant.userInitial}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* User name */}
+              <div className="absolute bottom-1.5 inset-x-0 text-center text-[10px] text-white font-semibold line-clamp-1">
+                {participant.userName}
+              </div>
+            </div>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     )
   },
 )
@@ -299,7 +360,8 @@ function RoomPage() {
       setHasJoined(true)
     } catch (error: any) {
       console.error('Failed to join room:', error)
-      const errorMessage = error?.message || 'Failed to join room. Please check the join code.'
+      const errorMessage =
+        error?.message || 'Failed to join room. Please check the join code.'
 
       if (errorMessage === 'Room is full') {
         toast.error('Room is full', {
@@ -630,16 +692,23 @@ function RoomPage() {
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Users</p>
                       <p className="text-sm text-slate-900">
-                        {participants ? participants.length : 0} / {room.maxUsers}
+                        {participants ? participants.length : 0} /{' '}
+                        {room.maxUsers}
                       </p>
                     </div>
                   )}
-                  {!room.maxUsers && participants && participants.length > 0 && (
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Active Users</p>
-                      <p className="text-sm text-slate-900">{participants.length}</p>
-                    </div>
-                  )}
+                  {!room.maxUsers &&
+                    participants &&
+                    participants.length > 0 && (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">
+                          Active Users
+                        </p>
+                        <p className="text-sm text-slate-900">
+                          {participants.length}
+                        </p>
+                      </div>
+                    )}
                   {room.visibility === 'private' && (
                     <div>
                       <p className="text-xs text-slate-500 mb-2">
@@ -688,7 +757,9 @@ function RoomPage() {
                   <Authenticated>
                     {(() => {
                       const isFull = Boolean(
-                        room.maxUsers && participants && participants.length >= room.maxUsers,
+                        room.maxUsers &&
+                          participants &&
+                          participants.length >= room.maxUsers,
                       )
                       return (
                         <Button
