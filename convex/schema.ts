@@ -60,4 +60,32 @@ export default defineSchema({
     .index('roomId', ['roomId'])
     .index('userId', ['userId'])
     .index('roomId_userId', ['roomId', 'userId']),
+
+  cursorPositions: defineTable({
+    roomId: v.id('rooms'),
+    userId: v.string(),
+    userName: v.string(),
+    userInitial: v.string(),
+    userAvatarUrl: v.optional(v.string()),
+    cursorX: v.number(), // Cursor X position (0-100 percentage)
+    cursorY: v.number(), // Cursor Y position (0-100 percentage)
+    typingText: v.optional(v.string()), // Text being typed (shown in real-time)
+    lastSeen: v.number(), // Timestamp for cleanup
+  })
+    .index('roomId', ['roomId'])
+    .index('userId_roomId', ['userId', 'roomId']),
+
+  chatMessages: defineTable({
+    roomId: v.id('rooms'),
+    userId: v.string(),
+    userName: v.string(),
+    userInitial: v.string(),
+    userAvatarUrl: v.optional(v.string()),
+    message: v.string(),
+    cursorX: v.number(), // Cursor X position when message was sent
+    cursorY: v.number(), // Cursor Y position when message was sent
+    createdAt: v.number(), // Timestamp
+  })
+    .index('roomId', ['roomId'])
+    .index('roomId_createdAt', ['roomId', 'createdAt']),
 })

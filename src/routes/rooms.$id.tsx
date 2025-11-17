@@ -8,9 +8,11 @@ import {
 } from 'convex/react'
 import {
   ChartBar,
+  ChevronDown,
   Hourglass,
   LogIn,
   Medal,
+  MessageSquare,
   Pause,
   Play,
   RotateCcw,
@@ -236,6 +238,12 @@ function RoomPage() {
   const userSessions = useQuery(api.rooms.getUserSessions, {
     roomId: id as any,
   })
+  const cursorPositions = useQuery(api.rooms.getCursorPositions, {
+    roomId: id as any,
+  })
+  const chatMessages = useQuery(api.rooms.getChatMessages, {
+    roomId: id as any,
+  })
   const joinRoom = useMutation(api.rooms.join)
   const updatePosition = useMutation(api.rooms.updatePosition)
   const updateTimer = useMutation(api.rooms.updateTimer)
@@ -243,6 +251,9 @@ function RoomPage() {
   const savePomodoroSession = useMutation(api.rooms.savePomodoroSession)
   const leaveRoom = useMutation(api.rooms.leaveRoom)
   const updateRoom = useMutation(api.rooms.update)
+  const updateCursorPosition = useMutation(api.rooms.updateCursorPosition)
+  const sendChatMessage = useMutation(api.rooms.sendChatMessage)
+  const removeCursorPosition = useMutation(api.rooms.removeCursorPosition)
   const [joinCode, setJoinCode] = useState('')
   const [isJoining, setIsJoining] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
@@ -277,6 +288,19 @@ function RoomPage() {
   const isTypingTaskRef = useRef(false)
   const timerStateRef = useRef<TimerState>(timerState) // Track timer state in ref to avoid stale closures
   const isUserControllingTimerRef = useRef(false) // Track if user is actively controlling the timer
+
+  // Cursor and chat state
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false) // Toggle for chat history panel
+  const [chatInput, setChatInput] = useState('')
+  const [currentCursorPos, setCurrentCursorPos] = useState<{
+    x: number
+    y: number
+  } | null>(null)
+  const cursorUpdateThrottleRef = useRef<NodeJS.Timeout | null>(null)
+  const chatInputRef = useRef<HTMLInputElement | null>(null)
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null) // Track mouse position even when chat is closed
+  const chatHistoryRef = useRef<HTMLDivElement | null>(null) // Ref for chat history scroll container
 
   // Get current user's participant data
   const currentUserId = user?.id
@@ -505,13 +529,18 @@ function RoomPage() {
     return () => {
       if (hasJoined && currentUserId) {
         leaveRoom({ roomId: id as any }).catch(console.error)
+        removeCursorPosition({ roomId: id as any }).catch(console.error)
       }
       // Clear task debounce timeout
       if (taskDebounceRef.current) {
         clearTimeout(taskDebounceRef.current)
       }
+      // Clear cursor update throttle
+      if (cursorUpdateThrottleRef.current) {
+        clearTimeout(cursorUpdateThrottleRef.current)
+      }
     }
-  }, [hasJoined, currentUserId, id, leaveRoom])
+  }, [hasJoined, currentUserId, id, leaveRoom, removeCursorPosition])
 
   const handleJoinRoom = async () => {
     if (!user) return
@@ -609,6 +638,228 @@ function RoomPage() {
     setIsDragging(false)
     setLocalPosition(null)
   }
+
+  // Cursor tracking handler - always tracks position, but only updates database when chat is active
+  const handleCursorMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!hasJoined || !currentUserId || isDragging) return
+      const container = e.currentTarget as HTMLElement
+      const rect = container.getBoundingClientRect()
+      const x = ((e.clientX - rect.left) / rect.width) * 100
+      const y = ((e.clientY - rect.top) / rect.height) * 100
+
+      // Always track mouse position in ref (even when chat is closed)
+      lastMousePosRef.current = { x, y }
+
+      // Only update state and database when chat is open
+      if (isChatOpen) {
+        // Update local cursor position
+        setCurrentCursorPos({ x, y })
+
+        // Throttle cursor position updates (every 100ms)
+        if (cursorUpdateThrottleRef.current) {
+          return
+        }
+
+        cursorUpdateThrottleRef.current = setTimeout(() => {
+          updateCursorPosition({
+            roomId: id as any,
+            cursorX: x,
+            cursorY: y,
+          }).catch(console.error)
+          cursorUpdateThrottleRef.current = null
+        }, 100)
+      }
+    },
+    [
+      hasJoined,
+      currentUserId,
+      isDragging,
+      isChatOpen,
+      id,
+      updateCursorPosition,
+    ],
+  )
+
+  // Helper function to close chat and clean up cursor position
+  const handleCloseChat = useCallback(async () => {
+    setIsChatOpen(false)
+    setChatInput('')
+    const cursorPos = currentCursorPos
+    setCurrentCursorPos(null)
+    // Clear typing text and remove cursor position from database
+    if (hasJoined && currentUserId && cursorPos) {
+      await updateCursorPosition({
+        roomId: id as any,
+        cursorX: cursorPos.x,
+        cursorY: cursorPos.y,
+        typingText: undefined,
+      }).catch(console.error)
+      await removeCursorPosition({ roomId: id as any }).catch(console.error)
+    }
+  }, [
+    hasJoined,
+    currentUserId,
+    currentCursorPos,
+    id,
+    updateCursorPosition,
+    removeCursorPosition,
+  ])
+
+  // Handle chat toggle
+  const handleToggleChat = useCallback(async () => {
+    if (isChatOpen) {
+      // Closing chat - use cleanup function
+      await handleCloseChat()
+    } else {
+      // Opening chat - initialize cursor position from last known position
+      // Use last known position, or center of screen as fallback
+      const initialPos = lastMousePosRef.current || { x: 50, y: 50 }
+      setCurrentCursorPos(initialPos)
+      // Immediately update database with current position
+      updateCursorPosition({
+        roomId: id as any,
+        cursorX: initialPos.x,
+        cursorY: initialPos.y,
+      }).catch(console.error)
+      setIsChatOpen(true)
+      setChatInput('')
+      // Show toast notification
+      toast.info('Chat activated! Start typing to send a message.', {
+        duration: 3000,
+      })
+      // Focus input after a brief delay to ensure it's rendered
+      setTimeout(() => {
+        chatInputRef.current?.focus()
+      }, 0)
+    }
+  }, [isChatOpen, handleCloseChat, id, updateCursorPosition])
+
+  // Keyboard handler for "/" to open chat and "Esc" to close
+  useEffect(() => {
+    if (!hasJoined) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if not typing in an input/textarea (except when chat is open)
+      const target = e.target as HTMLElement
+      if (
+        !isChatOpen &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+
+      // Open chat on "/"
+      if (e.key === '/' && !isChatOpen) {
+        e.preventDefault()
+        // Initialize cursor position from last known position
+        // Use last known position, or center of screen as fallback
+        const initialPos = lastMousePosRef.current || { x: 50, y: 50 }
+        setCurrentCursorPos(initialPos)
+        // Immediately update database with current position
+        updateCursorPosition({
+          roomId: id as any,
+          cursorX: initialPos.x,
+          cursorY: initialPos.y,
+        }).catch(console.error)
+        setIsChatOpen(true)
+        setChatInput('')
+        // Show toast notification
+        toast.info('Chat activated! Start typing to send a message.', {
+          duration: 3000,
+        })
+        // Focus input after a brief delay to ensure it's rendered
+        setTimeout(() => {
+          chatInputRef.current?.focus()
+        }, 0)
+      }
+
+      // Close chat on Escape and remove cursor position
+      if (e.key === 'Escape' && isChatOpen) {
+        e.preventDefault()
+        handleCloseChat()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [hasJoined, isChatOpen, handleCloseChat, id, updateCursorPosition])
+
+  // Handle chat submission
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!chatInput.trim() || !currentCursorPos || !hasJoined) return
+
+    const message = chatInput.trim()
+
+    if (message) {
+      await sendChatMessage({
+        roomId: id as any,
+        message: message,
+        cursorX: currentCursorPos.x,
+        cursorY: currentCursorPos.y,
+      }).catch(console.error)
+    }
+
+    setIsChatOpen(false)
+    setChatInput('')
+    setCurrentCursorPos(null)
+    // Clear typing text and remove cursor position after sending message
+    await updateCursorPosition({
+      roomId: id as any,
+      cursorX: currentCursorPos.x,
+      cursorY: currentCursorPos.y,
+      typingText: undefined,
+    }).catch(console.error)
+    await removeCursorPosition({ roomId: id as any }).catch(console.error)
+  }
+
+  // Update cursor position and typing text while typing (debounced)
+  const typingDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  useEffect(() => {
+    if (!isChatOpen || !hasJoined || !currentUserId || !currentCursorPos) return
+
+    // Clear previous debounce
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current)
+    }
+
+    // Debounce typing text updates (every 200ms)
+    typingDebounceRef.current = setTimeout(() => {
+      updateCursorPosition({
+        roomId: id as any,
+        cursorX: currentCursorPos.x,
+        cursorY: currentCursorPos.y,
+        typingText: chatInput || undefined,
+      }).catch(console.error)
+      typingDebounceRef.current = null
+    }, 200)
+
+    return () => {
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current)
+      }
+    }
+  }, [
+    isChatOpen,
+    hasJoined,
+    currentUserId,
+    currentCursorPos,
+    chatInput,
+    id,
+    updateCursorPosition,
+  ])
+
+  // Auto-scroll chat history to bottom when new messages arrive
+  useEffect(() => {
+    if (chatHistoryRef.current) {
+      chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight
+    }
+  }, [chatMessages])
 
   // Timer handlers
   const handleStart = async () => {
@@ -912,6 +1163,21 @@ function RoomPage() {
                   >
                     <ChartBar className="size-5" />
                   </button>
+                  <button
+                    onClick={handleToggleChat}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isChatOpen
+                        ? 'bg-emerald-500/20 hover:bg-emerald-500/30'
+                        : 'hover:bg-white/60'
+                    }`}
+                    aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
+                  >
+                    <MessageSquare
+                      className={`size-5 ${
+                        isChatOpen ? 'text-emerald-600' : 'text-slate-700'
+                      }`}
+                    />
+                  </button>
                   {isRoomOwner && (
                     <button
                       onClick={() => setIsSettingsDialogOpen(true)}
@@ -930,16 +1196,327 @@ function RoomPage() {
 
         {/* Background image */}
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className={`absolute inset-0 bg-cover bg-center ${
+            isChatOpen ? 'cursor-none' : ''
+          }`}
           style={{
             backgroundImage: 'url(/assets/images/bg/meeting-room.webp)',
           }}
-          onMouseMove={handleMouseMove}
+          onMouseMove={(e) => {
+            handleMouseMove(e)
+            handleCursorMove(e)
+          }}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
           {/* Overlay for better visibility */}
           <div className="absolute inset-0 bg-black/20"></div>
+
+          {/* Other users' cursors (only shown when they're actively chatting) */}
+          {cursorPositions
+            ?.filter((cursor) => cursor.userId !== currentUserId)
+            .map((cursor) => (
+              <motion.div
+                key={cursor.id}
+                className="absolute pointer-events-none z-20"
+                initial={{ opacity: 0 }}
+                animate={{
+                  left: `${cursor.cursorX}%`,
+                  top: `${cursor.cursorY}%`,
+                  opacity: 1,
+                }}
+                transition={{
+                  left: { duration: 0.1, ease: 'linear' },
+                  top: { duration: 0.1, ease: 'linear' },
+                  opacity: { duration: 0.2 },
+                }}
+                style={{
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <div className="flex flex-col items-center gap-1">
+                  {/* Cursor pointer */}
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="drop-shadow-lg"
+                  >
+                    <path
+                      d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z"
+                      fill="currentColor"
+                      className="text-emerald-500"
+                    />
+                  </svg>
+                  {/* User name label */}
+                  <div className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap font-semibold shadow-lg">
+                    {cursor.userName}
+                  </div>
+                  {/* Typing text preview */}
+                  {cursor.typingText && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white/95 backdrop-blur-sm border border-slate-200 rounded-lg px-2 py-1.5 shadow-lg max-w-[200px] mt-1"
+                      style={{
+                        transform: 'translateY(100%)',
+                      }}
+                    >
+                      <p className="text-xs text-slate-700 wrap-break-word">
+                        {cursor.typingText}
+                      </p>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+
+          {/* Current user's cursor (shown when chat is open) */}
+          {isChatOpen && currentCursorPos && currentParticipant && (
+            <motion.div
+              className="absolute pointer-events-none z-20"
+              animate={{
+                left: `${currentCursorPos.x}%`,
+                top: `${currentCursorPos.y}%`,
+                opacity: 1,
+              }}
+              transition={{
+                left: { duration: 0.1, ease: 'linear' },
+                top: { duration: 0.1, ease: 'linear' },
+                opacity: { duration: 0.2 },
+              }}
+              style={{
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              <div className="flex flex-col items-center gap-1">
+                {/* Cursor pointer */}
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="drop-shadow-lg"
+                >
+                  <path
+                    d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z"
+                    fill="currentColor"
+                    className="text-emerald-500"
+                  />
+                </svg>
+                {/* User name label */}
+                <div className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap font-semibold shadow-lg">
+                  {currentParticipant.userName}
+                </div>
+                {/* Text preview while typing */}
+                {chatInput && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white/95 backdrop-blur-sm border border-slate-200 rounded-lg px-2 py-1.5 shadow-lg max-w-[200px] mt-1"
+                    style={{
+                      transform: 'translateY(100%)',
+                    }}
+                  >
+                    <p className="text-xs text-slate-700 wrap-break-word">
+                      {chatInput}
+                    </p>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Chat History Panel - Gaming Style */}
+          {isChatHistoryOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="absolute bottom-24 right-6 z-30 w-80 max-w-[calc(100vw-3rem)]"
+            >
+              <div className="bg-black/40 backdrop-blur-md rounded-lg border border-white/20 shadow-2xl overflow-hidden">
+                {/* Chat Header */}
+                <div className="px-3 py-2 border-b border-white/10 flex items-center gap-2">
+                  <MessageSquare className="size-4 text-emerald-400" />
+                  <span className="text-xs font-semibold text-white">Chat</span>
+                  {isChatOpen && (
+                    <span className="ml-auto text-[10px] text-emerald-400">
+                      Press Esc to close
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setIsChatHistoryOpen(false)}
+                    className="ml-auto p-1 rounded hover:bg-white/10 transition-colors"
+                    aria-label="Minimize chat"
+                    title="Minimize chat"
+                  >
+                    <ChevronDown className="size-4 text-white/60" />
+                  </button>
+                </div>
+
+              {/* Chat Messages Container */}
+              <div
+                ref={chatHistoryRef}
+                className="chat-history-scroll max-h-64 overflow-y-auto px-3 py-2 space-y-1.5"
+                style={{
+                  scrollbarWidth: 'thin',
+                }}
+              >
+                {chatMessages && chatMessages.length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-xs text-white/50">
+                      No messages yet. Start chatting!
+                    </p>
+                  </div>
+                ) : (
+                  chatMessages?.map((message) => {
+                    const isCurrentUser = message.userId === currentUserId
+                    return (
+                      <motion.div
+                        key={message.id}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className={`flex gap-2 ${
+                          isCurrentUser ? 'flex-row-reverse' : 'flex-row'
+                        }`}
+                      >
+                        {/* Avatar */}
+                        <div className="shrink-0">
+                          {message.userAvatarUrl ? (
+                            <div className="w-5 h-5 rounded-full overflow-hidden border border-white/20">
+                              <img
+                                src={message.userAvatarUrl}
+                                alt={message.userName}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-5 h-5 rounded-full bg-emerald-500/80 border border-white/20 flex items-center justify-center">
+                              <span className="text-[8px] font-semibold text-white">
+                                {message.userInitial}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Message Content */}
+                        <div
+                          className={`flex-1 min-w-0 ${
+                            isCurrentUser ? 'items-end' : 'items-start'
+                          } flex flex-col`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span
+                              className={`text-[10px] font-semibold ${
+                                isCurrentUser
+                                  ? 'text-emerald-300'
+                                  : 'text-white/90'
+                              }`}
+                            >
+                              {message.userName}
+                            </span>
+                            <span className="text-[9px] text-white/40">
+                              {new Date(message.createdAt).toLocaleTimeString(
+                                'en-US',
+                                {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                },
+                              )}
+                            </span>
+                          </div>
+                          <div
+                            className={`rounded-lg px-2 py-1 ${
+                              isCurrentUser
+                                ? 'bg-emerald-500/30 text-white'
+                                : 'bg-white/10 text-white/90'
+                            } backdrop-blur-sm`}
+                          >
+                            <p className="text-xs wrap-break-word leading-relaxed">
+                              {message.message}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Chat Input Indicator */}
+              {isChatOpen && (
+                <div className="px-3 py-2 border-t border-white/10">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                    <span className="text-[10px] text-white/60">
+                      Type to send a message...
+                    </span>
+                  </div>
+                </div>
+              )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Floating Chat Widget Button - Only show when chat history is closed */}
+          {!isChatHistoryOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+              className="fixed bottom-6 right-6 z-30"
+            >
+              <button
+                onClick={() => setIsChatHistoryOpen(true)}
+                className="relative bg-emerald-500 hover:bg-emerald-600 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group"
+                aria-label="Open chat"
+              >
+                <MessageSquare className="size-5" />
+                {chatMessages && chatMessages.length > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center shadow-lg"
+                  >
+                    {chatMessages.length > 99 ? '99+' : chatMessages.length}
+                  </motion.span>
+                )}
+                {/* Pulse animation */}
+                <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-20"></span>
+              </button>
+            </motion.div>
+          )}
+
+          {/* Chat input (hidden, only for capturing keyboard input) */}
+          {isChatOpen && (
+            <form
+              onSubmit={handleChatSubmit}
+              className="absolute opacity-0 pointer-events-none"
+              style={{ top: '-9999px', left: '-9999px' }}
+            >
+              <Input
+                ref={chatInputRef}
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    handleCloseChat()
+                  }
+                }}
+                placeholder="Type a message..."
+                autoFocus
+              />
+            </form>
+          )}
 
           {/* All participants' avatars */}
           {participants.map((participant) => {
@@ -1155,14 +1732,19 @@ function RoomPage() {
                 </div>
               ) : leaderboard.length === 0 ? (
                 <div className="text-center py-8 text-slate-500 text-sm">
-                  <p>No sessions yet. Start focusing to appear on the leaderboard!</p>
+                  <p>
+                    No sessions yet. Start focusing to appear on the
+                    leaderboard!
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-1.5 pr-1">
                   {leaderboard.map((entry, index) => {
                     // Format total time: convert seconds to hours and minutes
                     const totalHours = Math.floor(entry.totalTime / 3600)
-                    const totalMinutes = Math.floor((entry.totalTime % 3600) / 60)
+                    const totalMinutes = Math.floor(
+                      (entry.totalTime % 3600) / 60,
+                    )
                     const timeDisplay =
                       totalHours > 0
                         ? `${totalHours}h ${totalMinutes}m`
@@ -1224,7 +1806,8 @@ function RoomPage() {
                             {entry.userName}
                           </div>
                           <div className="text-[10px] text-slate-500">
-                            {entry.totalSessions} session{entry.totalSessions !== 1 ? 's' : ''}
+                            {entry.totalSessions} session
+                            {entry.totalSessions !== 1 ? 's' : ''}
                           </div>
                         </div>
 
@@ -1233,7 +1816,9 @@ function RoomPage() {
                           <div className="text-sm font-semibold text-slate-900">
                             {timeDisplay}
                           </div>
-                          <div className="text-[10px] text-slate-500">total</div>
+                          <div className="text-[10px] text-slate-500">
+                            total
+                          </div>
                         </div>
                       </div>
                     )
@@ -1266,7 +1851,9 @@ function RoomPage() {
                 </div>
               ) : userSessions.length === 0 ? (
                 <div className="text-center py-6 text-slate-500 text-sm">
-                  <p>No sessions yet. Start a timer to track your focus time!</p>
+                  <p>
+                    No sessions yet. Start a timer to track your focus time!
+                  </p>
                 </div>
               ) : (
                 <>
@@ -1274,13 +1861,17 @@ function RoomPage() {
                   <div className="mb-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <div className="text-[10px] text-slate-600 mb-0.5">Total Sessions</div>
+                        <div className="text-[10px] text-slate-600 mb-0.5">
+                          Total Sessions
+                        </div>
                         <div className="text-xl font-semibold text-slate-900">
                           {userSessions.length}
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-600 mb-0.5">Total Time</div>
+                        <div className="text-[10px] text-slate-600 mb-0.5">
+                          Total Time
+                        </div>
                         <div className="text-xl font-semibold text-slate-900">
                           {(() => {
                             const totalSeconds = userSessions.reduce(
@@ -1288,7 +1879,9 @@ function RoomPage() {
                               0,
                             )
                             const totalHours = Math.floor(totalSeconds / 3600)
-                            const totalMinutes = Math.floor((totalSeconds % 3600) / 60)
+                            const totalMinutes = Math.floor(
+                              (totalSeconds % 3600) / 60,
+                            )
                             return totalHours > 0
                               ? `${totalHours}h ${totalMinutes}m`
                               : `${totalMinutes}m`
@@ -1305,16 +1898,17 @@ function RoomPage() {
                       const minutes = Math.floor(session.duration / 60)
                       const seconds = session.duration % 60
                       const durationDisplay =
-                        minutes > 0
-                          ? `${minutes}m ${seconds}s`
-                          : `${seconds}s`
+                        minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
 
                       // Format date
                       const date = new Date(session.completedAt)
                       const dateDisplay = date.toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
-                        year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+                        year:
+                          date.getFullYear() !== new Date().getFullYear()
+                            ? 'numeric'
+                            : undefined,
                       })
                       const timeDisplay = date.toLocaleTimeString('en-US', {
                         hour: 'numeric',
@@ -1323,9 +1917,21 @@ function RoomPage() {
 
                       // Timer type emoji and label
                       const timerTypeConfig = {
-                        pomodoro: { emoji: '🍅', label: 'Pomodoro', color: 'emerald' },
-                        shortBreak: { emoji: '☕', label: 'Short Break', color: 'blue' },
-                        longBreak: { emoji: '🌴', label: 'Long Break', color: 'purple' },
+                        pomodoro: {
+                          emoji: '🍅',
+                          label: 'Pomodoro',
+                          color: 'emerald',
+                        },
+                        shortBreak: {
+                          emoji: '☕',
+                          label: 'Short Break',
+                          color: 'blue',
+                        },
+                        longBreak: {
+                          emoji: '🌴',
+                          label: 'Long Break',
+                          color: 'purple',
+                        },
                       }
                       const config = timerTypeConfig[session.timerType]
 

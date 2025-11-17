@@ -727,3 +727,237 @@ export const getUserSessions = query({
     }
   },
 })
+
+/**
+ * Update cursor position
+ * Called frequently to track user's cursor position
+ */
+export const updateCursorPosition = mutation({
+  args: {
+    roomId: v.id('rooms'),
+    cursorX: v.number(),
+    cursorY: v.number(),
+    typingText: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      // Get participant info for user details
+      const participant = await ctx.db
+        .query('roomParticipants')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (!participant) {
+        throw new Error('Participant not found')
+      }
+
+      // Check if cursor position already exists
+      const existing = await ctx.db
+        .query('cursorPositions')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      const now = Date.now()
+      const cursorData: any = {
+        roomId: args.roomId,
+        userId,
+        userName: participant.userName,
+        userInitial: participant.userInitial,
+        userAvatarUrl: participant.userAvatarUrl,
+        cursorX: args.cursorX,
+        cursorY: args.cursorY,
+        lastSeen: now,
+      }
+
+      // Include typingText if provided
+      if (args.typingText !== undefined) {
+        cursorData.typingText = args.typingText || undefined
+      } else if (existing) {
+        // Preserve existing typingText if not provided
+        cursorData.typingText = existing.typingText
+      }
+
+      if (existing) {
+        // Update existing cursor position
+        await ctx.db.patch(existing._id, cursorData)
+      } else {
+        // Create new cursor position
+        await ctx.db.insert('cursorPositions', cursorData)
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error updating cursor position:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Get all cursor positions for a room
+ * Returns active cursors (seen within last 5 seconds)
+ */
+export const getCursorPositions = query({
+  args: { roomId: v.id('rooms') },
+  handler: async (ctx, args) => {
+    try {
+      const cursors = await ctx.db
+        .query('cursorPositions')
+        .withIndex('roomId', (q) => q.eq('roomId', args.roomId))
+        .collect()
+
+      // Filter out cursors that haven't been seen in 5 seconds
+      const now = Date.now()
+      const activeCursors = cursors.filter(
+        (c) => now - c.lastSeen < 5000,
+      )
+
+      return activeCursors.map((c) => ({
+        id: c._id,
+        userId: c.userId,
+        userName: c.userName,
+        userInitial: c.userInitial,
+        userAvatarUrl: c.userAvatarUrl,
+        cursorX: c.cursorX,
+        cursorY: c.cursorY,
+        typingText: c.typingText,
+      }))
+    } catch (error) {
+      console.error('Error getting cursor positions:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Send a chat message
+ */
+export const sendChatMessage = mutation({
+  args: {
+    roomId: v.id('rooms'),
+    message: v.string(),
+    cursorX: v.number(),
+    cursorY: v.number(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      // Get participant info for user details
+      const participant = await ctx.db
+        .query('roomParticipants')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (!participant) {
+        throw new Error('Participant not found')
+      }
+
+      // Create chat message
+      await ctx.db.insert('chatMessages', {
+        roomId: args.roomId,
+        userId,
+        userName: participant.userName,
+        userInitial: participant.userInitial,
+        userAvatarUrl: participant.userAvatarUrl,
+        message: args.message,
+        cursorX: args.cursorX,
+        cursorY: args.cursorY,
+        createdAt: Date.now(),
+      })
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error sending chat message:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Get recent chat messages for a room
+ * Returns last 100 messages sorted by creation time
+ */
+export const getChatMessages = query({
+  args: { roomId: v.id('rooms') },
+  handler: async (ctx, args) => {
+    try {
+      const messages = await ctx.db
+        .query('chatMessages')
+        .withIndex('roomId_createdAt', (q) => q.eq('roomId', args.roomId))
+        .order('desc')
+        .take(100)
+
+      // Sort by creation time (oldest first for display)
+      const sortedMessages = messages.sort((a, b) => a.createdAt - b.createdAt)
+
+      return sortedMessages.map((m) => ({
+        id: m._id,
+        userId: m.userId,
+        userName: m.userName,
+        userInitial: m.userInitial,
+        userAvatarUrl: m.userAvatarUrl,
+        message: m.message,
+        cursorX: m.cursorX,
+        cursorY: m.cursorY,
+        createdAt: m.createdAt,
+      }))
+    } catch (error) {
+      console.error('Error getting chat messages:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Remove cursor position when user leaves or disconnects
+ */
+export const removeCursorPosition = mutation({
+  args: {
+    roomId: v.id('rooms'),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      const cursor = await ctx.db
+        .query('cursorPositions')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (cursor) {
+        await ctx.db.delete(cursor._id)
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error removing cursor position:', error)
+      throw error
+    }
+  },
+})
