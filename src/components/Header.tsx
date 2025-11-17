@@ -25,7 +25,7 @@ export default function Header() {
     visibility: 'public' as 'public' | 'private',
     theme: '🪷',
     musicUrl: '',
-    maxUsers: undefined as number | undefined,
+    maxUsers: 10 as number | undefined,
   })
 
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -38,7 +38,7 @@ export default function Header() {
         visibility: formData.visibility,
         theme: formData.theme,
         musicUrl: formData.musicUrl || undefined,
-        maxUsers: formData.maxUsers || undefined,
+        maxUsers: formData.maxUsers || 10,
       })
 
       // Reset form
@@ -47,7 +47,7 @@ export default function Header() {
         visibility: 'public',
         theme: '🪷',
         musicUrl: '',
-        maxUsers: undefined,
+        maxUsers: 10,
       })
       setIsDialogOpen(false)
 
@@ -131,7 +131,7 @@ export default function Header() {
                       visibility: 'public',
                       theme: '🪷',
                       musicUrl: '',
-                      maxUsers: undefined,
+                      maxUsers: 10,
                     })
                   }}
                 />

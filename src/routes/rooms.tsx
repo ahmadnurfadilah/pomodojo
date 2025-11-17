@@ -54,7 +54,7 @@ function RoomsPage() {
     visibility: 'public' as 'public' | 'private',
     theme: '🪷',
     musicUrl: '',
-    maxUsers: undefined as number | undefined,
+    maxUsers: 10 as number | undefined,
   })
 
   // Check if we're on a detail route
@@ -70,7 +70,7 @@ function RoomsPage() {
         visibility: formData.visibility,
         theme: formData.theme,
         musicUrl: formData.musicUrl || undefined,
-        maxUsers: formData.maxUsers || undefined,
+        maxUsers: formData.maxUsers || 10,
       })
 
       // Reset form
@@ -79,7 +79,7 @@ function RoomsPage() {
         visibility: 'public',
         theme: '🪷',
         musicUrl: '',
-        maxUsers: undefined,
+        maxUsers: 10,
       })
       setIsDialogOpen(false)
 
@@ -111,7 +111,7 @@ function RoomsPage() {
       visibility: 'public',
       theme: '🪷',
       musicUrl: '',
-      maxUsers: undefined,
+      maxUsers: 10,
     })
     setEditingRoom(null)
   }
@@ -128,7 +128,7 @@ function RoomsPage() {
         visibility: formData.visibility,
         theme: formData.theme,
         musicUrl: formData.musicUrl || undefined,
-        maxUsers: formData.maxUsers || undefined,
+        maxUsers: formData.maxUsers || 10,
       })
 
       resetForm()
@@ -207,7 +207,7 @@ function RoomsPage() {
                           visibility: 'public',
                           theme: '🪷',
                           musicUrl: '',
-                          maxUsers: undefined,
+                          maxUsers: 10,
                         })
                       }}
                     />
@@ -274,7 +274,7 @@ function RoomsPage() {
                             visibility: 'public',
                             theme: '🪷',
                             musicUrl: '',
-                            maxUsers: undefined,
+                            maxUsers: 10,
                           })
                         }}
                         inputIdPrefix="-empty"

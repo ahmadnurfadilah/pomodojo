@@ -152,9 +152,11 @@ export function CreateRoomForm({
             onChange={(e) =>
               setFormData({ ...formData, musicUrl: e.target.value })
             }
-            placeholder="https://..."
-            className="mt-2"
+            placeholder="Coming soon..."
+            disabled
+            className="mt-2 cursor-not-allowed opacity-60"
           />
+          <p className="mt-1 text-xs text-slate-500">Coming soon</p>
         </div>
 
         <div>
@@ -162,7 +164,7 @@ export function CreateRoomForm({
             htmlFor={`maxUsers${inputIdPrefix}`}
             className="text-[13px] font-medium text-slate-900"
           >
-            Max Users (Optional)
+            Max Users
           </Label>
           <Input
             id={`maxUsers${inputIdPrefix}`}
@@ -171,11 +173,13 @@ export function CreateRoomForm({
             onChange={(e) =>
               setFormData({
                 ...formData,
-                maxUsers: e.target.value ? parseInt(e.target.value) : undefined,
+                maxUsers: e.target.value ? parseInt(e.target.value) : 10,
               })
             }
-            placeholder="No limit"
+            placeholder="10"
             min="1"
+            max="20"
+            required
             className="mt-2"
           />
         </div>
