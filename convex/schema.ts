@@ -19,6 +19,7 @@ export default defineSchema({
     userId: v.string(),
     userName: v.string(),
     userInitial: v.string(),
+    userAvatarUrl: v.optional(v.string()),
     positionX: v.number(),
     positionY: v.number(),
     timerState: v.union(

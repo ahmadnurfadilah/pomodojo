@@ -114,6 +114,7 @@ export const join = mutation({
     joinCode: v.optional(v.string()),
     userName: v.string(),
     userInitial: v.string(),
+    userAvatarUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     try {
@@ -144,9 +145,12 @@ export const join = mutation({
         .first()
 
       if (existing) {
-        // Update last seen
+        // Update last seen and avatar URL (in case it changed)
         await ctx.db.patch(existing._id, {
           lastSeen: Date.now(),
+          ...(args.userAvatarUrl !== undefined && {
+            userAvatarUrl: args.userAvatarUrl,
+          }),
         })
         return { success: true, roomId: room._id }
       }
@@ -157,6 +161,7 @@ export const join = mutation({
         userId,
         userName: args.userName,
         userInitial: args.userInitial,
+        userAvatarUrl: args.userAvatarUrl,
         positionX: 50,
         positionY: 50,
         timerState: 'idle',
@@ -196,6 +201,7 @@ export const getParticipants = query({
         userId: p.userId,
         userName: p.userName,
         userInitial: p.userInitial,
+        userAvatarUrl: p.userAvatarUrl,
         positionX: p.positionX,
         positionY: p.positionY,
         timerState: p.timerState,

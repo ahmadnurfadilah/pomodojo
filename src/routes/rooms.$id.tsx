@@ -34,6 +34,7 @@ const ParticipantAvatar = memo(
       userId: string
       userName: string
       userInitial: string
+      userAvatarUrl?: string
       timerState: TimerState
       timeLeft: number
       task: string
@@ -84,15 +85,23 @@ const ParticipantAvatar = memo(
 
           {/* Avatar */}
           <div className="relative">
-            <div
-              className={`h-12 w-12 rounded-2xl border-2 border-white shadow-lg flex items-center justify-center backdrop-blur-sm ${
-                isCurrentUser ? 'bg-emerald-500/90' : 'bg-blue-500/90'
-              }`}
-            >
-              <span className="text-lg font-semibold tracking-tight text-white">
-                {participant.userInitial}
-              </span>
-            </div>
+            {participant.userAvatarUrl ? (
+              <img
+                src={participant.userAvatarUrl}
+                alt={participant.userName}
+                className="h-12 w-12 rounded-2xl border-2 border-white shadow-lg object-cover backdrop-blur-sm pointer-events-none"
+              />
+            ) : (
+              <div
+                className={`h-12 w-12 rounded-2xl border-2 border-white shadow-lg flex items-center justify-center backdrop-blur-sm ${
+                  isCurrentUser ? 'bg-emerald-500/90' : 'bg-blue-500/90'
+                }`}
+              >
+                <span className="text-lg font-semibold tracking-tight text-white">
+                  {participant.userInitial}
+                </span>
+              </div>
+            )}
             {participant.timerState === 'running' && (
               <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></div>
             )}
@@ -243,6 +252,7 @@ function RoomPage() {
         joinCode: room?.visibility === 'private' ? joinCode : undefined,
         userName,
         userInitial: userInitial.toUpperCase(),
+        userAvatarUrl: user.imageUrl,
       })
       setHasJoined(true)
     } catch (error: any) {
