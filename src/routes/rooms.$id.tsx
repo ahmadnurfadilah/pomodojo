@@ -292,6 +292,7 @@ function RoomPage() {
   // Cursor and chat state
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false) // Toggle for chat history panel
+  const [isTimerPanelOpen, setIsTimerPanelOpen] = useState(false) // Toggle for timer panel
   const [chatInput, setChatInput] = useState('')
   const [currentCursorPos, setCurrentCursorPos] = useState<{
     x: number
@@ -1540,115 +1541,111 @@ function RoomPage() {
             )
           })}
 
-          {/* Pomodoro timer - floating at bottom center */}
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-xl p-4 min-w-[320px] max-w-md">
-              <div className="flex flex-col gap-3">
-                {/* Task input */}
-                <Input
-                  type="text"
-                  placeholder="What are you working on?"
-                  value={task}
-                  onChange={(e) => handleTaskChange(e.target.value)}
-                  className="text-sm"
-                />
-
-                {/* Timer type selector */}
-                <div className="flex items-center justify-center">
-                  <Select
-                    value={timerType}
-                    onValueChange={(value) =>
-                      handleTimerTypeChange(value as TimerType)
-                    }
-                    disabled={timerState !== 'idle'}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pomodoro">
-                        🍅 Pomodoro (25 min)
-                      </SelectItem>
-                      <SelectItem value="shortBreak">
-                        ☕ Short Break (5 min)
-                      </SelectItem>
-                      <SelectItem value="longBreak">
-                        🌴 Long Break (15 min)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Pomodoro count badge */}
-                {timerType === 'pomodoro' && pomodoroCount > 0 && (
-                  <div className="flex items-center justify-center">
-                    <Badge variant="outline" className="text-xs">
-                      Completed: {pomodoroCount} pomodoro
-                      {pomodoroCount !== 1 ? 's' : ''}
-                    </Badge>
-                  </div>
-                )}
-
-                {/* Timer display */}
-                <div className="flex items-center justify-center gap-3">
-                  <div
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${
-                      timerType === 'pomodoro'
-                        ? 'bg-emerald-50 border-emerald-100'
-                        : timerType === 'shortBreak'
-                          ? 'bg-blue-50 border-blue-100'
-                          : 'bg-purple-50 border-purple-100'
-                    }`}
-                  >
-                    <Hourglass
-                      className={`h-4 w-4 ${
-                        timerType === 'pomodoro'
-                          ? 'text-emerald-600'
-                          : timerType === 'shortBreak'
-                            ? 'text-blue-600'
-                            : 'text-purple-600'
-                      }`}
-                    />
-                    <span className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
-                      {formatTime(timeLeft)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Timer controls */}
-                <div className="flex items-center justify-center gap-2">
-                  {timerState === 'idle' && (
-                    <Button
-                      onClick={handleStart}
-                      size="sm"
-                      className={
-                        timerType === 'pomodoro'
-                          ? 'bg-emerald-500 hover:bg-emerald-600'
-                          : timerType === 'shortBreak'
-                            ? 'bg-blue-500 hover:bg-blue-600'
-                            : 'bg-purple-500 hover:bg-purple-600'
-                      }
+          {/* Pomodoro Timer Panel - Toggleable */}
+          {isTimerPanelOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="absolute bottom-24 right-24 z-30 w-80 max-w-[calc(100vw-3rem)]"
+            >
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-xl p-4 min-w-[320px] max-w-md">
+                <div className="flex flex-col gap-3">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <Hourglass className="size-4 text-emerald-600" />
+                      <span className="text-sm font-semibold text-slate-900">
+                        Pomodoro Timer
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setIsTimerPanelOpen(false)}
+                      className="p-1 rounded hover:bg-slate-100 transition-colors"
+                      aria-label="Close timer"
+                      title="Close timer"
                     >
-                      <Play className="h-4 w-4" />
-                      Start
-                    </Button>
+                      <ChevronDown className="size-4 text-slate-600" />
+                    </button>
+                  </div>
+
+                  {/* Task input */}
+                  <Input
+                    type="text"
+                    placeholder="What are you working on?"
+                    value={task}
+                    onChange={(e) => handleTaskChange(e.target.value)}
+                    className="text-sm"
+                  />
+
+                  {/* Timer type selector */}
+                  <div className="flex items-center justify-center">
+                    <Select
+                      value={timerType}
+                      onValueChange={(value) =>
+                        handleTimerTypeChange(value as TimerType)
+                      }
+                      disabled={timerState !== 'idle'}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pomodoro">
+                          🍅 Pomodoro (25 min)
+                        </SelectItem>
+                        <SelectItem value="shortBreak">
+                          ☕ Short Break (5 min)
+                        </SelectItem>
+                        <SelectItem value="longBreak">
+                          🌴 Long Break (15 min)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Pomodoro count badge */}
+                  {timerType === 'pomodoro' && pomodoroCount > 0 && (
+                    <div className="flex items-center justify-center">
+                      <Badge variant="outline" className="text-xs">
+                        Completed: {pomodoroCount} pomodoro
+                        {pomodoroCount !== 1 ? 's' : ''}
+                      </Badge>
+                    </div>
                   )}
-                  {timerState === 'running' && (
-                    <>
-                      <Button onClick={handlePause} size="sm" variant="outline">
-                        <Pause className="h-4 w-4" />
-                        Pause
-                      </Button>
-                      <Button onClick={handleStop} size="sm" variant="outline">
-                        <Square className="h-4 w-4" />
-                        Stop
-                      </Button>
-                    </>
-                  )}
-                  {timerState === 'paused' && (
-                    <>
+
+                  {/* Timer display */}
+                  <div className="flex items-center justify-center gap-3">
+                    <div
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${
+                        timerType === 'pomodoro'
+                          ? 'bg-emerald-50 border-emerald-100'
+                          : timerType === 'shortBreak'
+                            ? 'bg-blue-50 border-blue-100'
+                            : 'bg-purple-50 border-purple-100'
+                      }`}
+                    >
+                      <Hourglass
+                        className={`h-4 w-4 ${
+                          timerType === 'pomodoro'
+                            ? 'text-emerald-600'
+                            : timerType === 'shortBreak'
+                              ? 'text-blue-600'
+                              : 'text-purple-600'
+                        }`}
+                      />
+                      <span className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
+                        {formatTime(timeLeft)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Timer controls */}
+                  <div className="flex items-center justify-center gap-2">
+                    {timerState === 'idle' && (
                       <Button
-                        onClick={handleResume}
+                        onClick={handleStart}
                         size="sm"
                         className={
                           timerType === 'pomodoro'
@@ -1659,18 +1656,85 @@ function RoomPage() {
                         }
                       >
                         <Play className="h-4 w-4" />
-                        Resume
+                        Start
                       </Button>
-                      <Button onClick={handleReset} size="sm" variant="outline">
-                        <RotateCcw className="h-4 w-4" />
-                        Reset
-                      </Button>
-                    </>
-                  )}
+                    )}
+                    {timerState === 'running' && (
+                      <>
+                        <Button onClick={handlePause} size="sm" variant="outline">
+                          <Pause className="h-4 w-4" />
+                          Pause
+                        </Button>
+                        <Button onClick={handleStop} size="sm" variant="outline">
+                          <Square className="h-4 w-4" />
+                          Stop
+                        </Button>
+                      </>
+                    )}
+                    {timerState === 'paused' && (
+                      <>
+                        <Button
+                          onClick={handleResume}
+                          size="sm"
+                          className={
+                            timerType === 'pomodoro'
+                              ? 'bg-emerald-500 hover:bg-emerald-600'
+                              : timerType === 'shortBreak'
+                                ? 'bg-blue-500 hover:bg-blue-600'
+                                : 'bg-purple-500 hover:bg-purple-600'
+                          }
+                        >
+                          <Play className="h-4 w-4" />
+                          Resume
+                        </Button>
+                        <Button onClick={handleReset} size="sm" variant="outline">
+                          <RotateCcw className="h-4 w-4" />
+                          Reset
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          )}
+
+          {/* Floating Timer Widget Button - Only show when timer panel is closed */}
+          {!isTimerPanelOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+              className="fixed bottom-6 right-24 z-30"
+            >
+              <button
+                onClick={() => setIsTimerPanelOpen(true)}
+                className={`relative rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group ${
+                  timerState === 'running'
+                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+                }`}
+                aria-label="Open timer"
+              >
+                <Hourglass className="size-5" />
+                {timerState === 'running' && (
+                  <>
+                    {/* Pulse animation */}
+                    <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-20"></span>
+                    {/* Timer indicator badge */}
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-1 -right-1 bg-emerald-600 text-white text-[9px] font-semibold rounded-full min-w-[2rem] h-5 flex items-center justify-center shadow-lg px-1"
+                    >
+                      {formatTime(timeLeft)}
+                    </motion.span>
+                  </>
+                )}
+              </button>
+            </motion.div>
+          )}
         </div>
 
         {/* Settings Dialog */}
