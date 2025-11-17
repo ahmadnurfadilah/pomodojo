@@ -128,12 +128,6 @@ export const join = mutation({
         throw new Error('Room not found')
       }
 
-      if (room.visibility === 'private') {
-        if (!args.joinCode || args.joinCode !== room.joinCode) {
-          throw new Error('Invalid join code')
-        }
-      }
-
       const userId = identity.subject
 
       // Check if user is already a participant
@@ -146,6 +140,7 @@ export const join = mutation({
 
       if (existing) {
         // Update last seen and avatar URL (in case it changed)
+        // Existing participants don't need to provide join code again
         await ctx.db.patch(existing._id, {
           lastSeen: Date.now(),
           ...(args.userAvatarUrl !== undefined && {
@@ -153,6 +148,13 @@ export const join = mutation({
           }),
         })
         return { success: true, roomId: room._id }
+      }
+
+      // Only require join code for new participants joining private rooms
+      if (room.visibility === 'private') {
+        if (!args.joinCode || args.joinCode !== room.joinCode) {
+          throw new Error('Invalid join code')
+        }
       }
 
       // Create new participant entry

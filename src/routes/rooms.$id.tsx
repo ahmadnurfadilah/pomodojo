@@ -158,6 +158,36 @@ function RoomPage() {
     (p) => p.userId === currentUserId,
   )
 
+  // Automatically set hasJoined to true if user is already a participant (e.g., after page refresh)
+  // Also refresh their presence by calling joinRoom to update lastSeen
+  useEffect(() => {
+    if (currentParticipant && !hasJoined && user && room) {
+      // User is already a participant, just refresh their presence
+      const userInitial =
+        user.firstName?.[0] || user.emailAddresses[0]?.emailAddress[0] || 'U'
+      const userName =
+        user.firstName ||
+        user.emailAddresses[0]?.emailAddress.split('@')[0] ||
+        'User'
+
+      joinRoom({
+        roomId: id as any,
+        // joinCode not needed if user is already a participant - mutation handles this
+        userName,
+        userInitial: userInitial.toUpperCase(),
+        userAvatarUrl: user.imageUrl,
+      })
+        .then(() => {
+          setHasJoined(true)
+        })
+        .catch((error) => {
+          console.error('Failed to refresh presence:', error)
+          // Still set hasJoined to true even if refresh fails
+          setHasJoined(true)
+        })
+    }
+  }, [currentParticipant, hasJoined, user, room, id, joinRoom])
+
   // Sync local state with participant data when it changes (only on initial join or state changes, not during countdown)
   const hasInitializedRef = useRef(false)
   useEffect(() => {
