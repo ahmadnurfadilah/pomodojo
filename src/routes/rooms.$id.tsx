@@ -7,7 +7,7 @@ import {
   useQuery,
 } from 'convex/react'
 import { Hourglass, LogIn, Pause, Play, RotateCcw, Square } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import Header from '../components/header'
 import { Button } from '@/components/ui/button'
@@ -19,36 +19,184 @@ export const Route = createFileRoute('/rooms/$id')({
 
 type TimerState = 'idle' | 'running' | 'paused'
 
+// Memoized participant avatar component to prevent unnecessary re-renders
+const ParticipantAvatar = memo(
+  ({
+    participant,
+    isCurrentUser,
+    displayPosition,
+    onMouseDown,
+    formatTime,
+    isDragging,
+  }: {
+    participant: {
+      id: string
+      userId: string
+      userName: string
+      userInitial: string
+      timerState: TimerState
+      timeLeft: number
+      task: string
+    }
+    isCurrentUser: boolean
+    displayPosition: { x: number; y: number }
+    onMouseDown: () => void
+    formatTime: (seconds: number) => string
+    isDragging: boolean
+  }) => {
+    // Only show timer & task when timer is running
+    const showTimerInfo = participant.timerState === 'running'
+    // Add smooth transition for other users, but not for current user while dragging
+    const shouldTransition = !isCurrentUser || !isDragging
+
+    return (
+      <div
+        className={`absolute select-none ${
+          isCurrentUser ? 'cursor-move hover:scale-105' : ''
+        }`}
+        style={{
+          left: `${displayPosition.x}%`,
+          top: `${displayPosition.y}%`,
+          transform: 'translate(-50%, -50%)',
+          transition: shouldTransition
+            ? 'left 0.3s ease-out, top 0.3s ease-out'
+            : 'none',
+        }}
+        onMouseDown={onMouseDown}
+      >
+        <div className="flex flex-col items-center gap-1">
+          {/* Timer and task display above avatar - only when timer is running */}
+          {showTimerInfo && (
+            <div className="mb-2 px-2 py-1 rounded-lg bg-white/95 backdrop-blur-sm border border-white/50 shadow-lg min-w-[120px]">
+              {participant.task && (
+                <div className="text-[10px] font-medium text-slate-800 truncate mb-1">
+                  {participant.task}
+                </div>
+              )}
+              <div className="flex items-center gap-1 justify-center">
+                <Hourglass className="h-3 w-3 text-emerald-600" />
+                <span className="text-xs font-semibold tracking-tight text-slate-900 tabular-nums">
+                  {formatTime(participant.timeLeft)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Avatar */}
+          <div className="relative">
+            <div
+              className={`h-12 w-12 rounded-2xl border-2 border-white shadow-lg flex items-center justify-center backdrop-blur-sm ${
+                isCurrentUser ? 'bg-emerald-500/90' : 'bg-blue-500/90'
+              }`}
+            >
+              <span className="text-lg font-semibold tracking-tight text-white">
+                {participant.userInitial}
+              </span>
+            </div>
+            {participant.timerState === 'running' && (
+              <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></div>
+            )}
+          </div>
+
+          {/* User name */}
+          <div className="px-2 py-1 rounded-lg bg-white/90 backdrop-blur-sm border border-white/50 shadow-sm">
+            <span className="text-[10px] font-medium text-slate-800">
+              {participant.userName}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  },
+)
+
+ParticipantAvatar.displayName = 'ParticipantAvatar'
+
 function RoomPage() {
   const { id } = Route.useParams()
   const { user } = useUser()
   const room = useQuery(api.rooms.get, { id: id as any })
+  const participants = useQuery(api.rooms.getParticipants, {
+    roomId: id as any,
+  })
   const joinRoom = useMutation(api.rooms.join)
+  const updatePosition = useMutation(api.rooms.updatePosition)
+  const updateTimer = useMutation(api.rooms.updateTimer)
+  const updateTask = useMutation(api.rooms.updateTask)
+  const leaveRoom = useMutation(api.rooms.leaveRoom)
   const [joinCode, setJoinCode] = useState('')
   const [isJoining, setIsJoining] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
 
-  // Avatar position state
-  const [avatarPosition, setAvatarPosition] = useState({ x: 50, y: 50 }) // percentage
+  // Avatar position state - use local state for smooth dragging
   const [isDragging, setIsDragging] = useState(false)
-  const avatarRef = useRef<HTMLDivElement>(null)
+  const [localPosition, setLocalPosition] = useState<{
+    x: number
+    y: number
+  } | null>(null)
 
   // Pomodoro timer state
   const [timerState, setTimerState] = useState<TimerState>('idle')
   const [timeLeft, setTimeLeft] = useState(25 * 60) // 25 minutes in seconds
   const [task, setTask] = useState('')
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const taskDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const isTypingTaskRef = useRef(false)
 
-  // Handle timer countdown
+  // Get current user's participant data
+  const currentUserId = user?.id
+  const currentParticipant = participants?.find(
+    (p) => p.userId === currentUserId,
+  )
+
+  // Sync local state with participant data when it changes (only on initial join or state changes, not during countdown)
+  const hasInitializedRef = useRef(false)
   useEffect(() => {
-    if (timerState === 'running' && timeLeft > 0) {
+    if (currentParticipant && hasJoined) {
+      // On initial join, sync everything
+      if (!hasInitializedRef.current) {
+        setTimeLeft(currentParticipant.timeLeft)
+        setTimerState(currentParticipant.timerState)
+        setTask(currentParticipant.task)
+        hasInitializedRef.current = true
+      } else {
+        // After initialization, only sync state changes (not timeLeft during countdown)
+        if (
+          currentParticipant.timerState !== timerState &&
+          timerState !== 'running'
+        ) {
+          setTimerState(currentParticipant.timerState)
+          setTimeLeft(currentParticipant.timeLeft)
+        }
+        // Only sync task changes if user is not actively typing
+        if (!isTypingTaskRef.current && currentParticipant.task !== task) {
+          setTask(currentParticipant.task)
+        }
+      }
+    }
+  }, [currentParticipant, hasJoined, timerState])
+
+  // Handle timer countdown and sync to database
+  useEffect(() => {
+    if (
+      timerState === 'running' &&
+      timeLeft > 0 &&
+      hasJoined &&
+      currentUserId
+    ) {
       timerIntervalRef.current = setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 1) {
+          const newTime = prev <= 1 ? 0 : prev - 1
+          // Sync to database every second
+          updateTimer({
+            roomId: id as any,
+            timerState: newTime === 0 ? 'idle' : 'running',
+            timeLeft: newTime,
+          }).catch(console.error)
+          if (newTime === 0) {
             setTimerState('idle')
-            return 0
           }
-          return prev - 1
+          return newTime
         })
       }, 1000)
     } else {
@@ -63,14 +211,38 @@ function RoomPage() {
         clearInterval(timerIntervalRef.current)
       }
     }
-  }, [timerState, timeLeft])
+  }, [timerState, timeLeft, hasJoined, currentUserId, id, updateTimer])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (hasJoined && currentUserId) {
+        leaveRoom({ roomId: id as any }).catch(console.error)
+      }
+      // Clear task debounce timeout
+      if (taskDebounceRef.current) {
+        clearTimeout(taskDebounceRef.current)
+      }
+    }
+  }, [hasJoined, currentUserId, id, leaveRoom])
 
   const handleJoinRoom = async () => {
+    if (!user) return
+
     setIsJoining(true)
     try {
+      const userInitial =
+        user.firstName?.[0] || user.emailAddresses[0]?.emailAddress[0] || 'U'
+      const userName =
+        user.firstName ||
+        user.emailAddresses[0]?.emailAddress.split('@')[0] ||
+        'User'
+
       await joinRoom({
         roomId: id as any,
         joinCode: room?.visibility === 'private' ? joinCode : undefined,
+        userName,
+        userInitial: userInitial.toUpperCase(),
       })
       setHasJoined(true)
     } catch (error: any) {
@@ -83,61 +255,148 @@ function RoomPage() {
     }
   }
 
-  // Avatar drag handlers
-  const handleMouseDown = () => {
-    if (!hasJoined) return
-    setIsDragging(true)
-  }
+  // Avatar drag handlers - use local state for smooth dragging
+  const handleMouseDown = useCallback(
+    (userId: string) => {
+      if (!hasJoined || userId !== currentUserId) return
+      setIsDragging(true)
+      // Initialize local position with current position
+      if (currentParticipant) {
+        setLocalPosition({
+          x: currentParticipant.positionX,
+          y: currentParticipant.positionY,
+        })
+      }
+    },
+    [hasJoined, currentUserId, currentParticipant],
+  )
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !hasJoined) return
-    const container = e.currentTarget as HTMLElement
-    const rect = container.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * 100
-    const y = ((e.clientY - rect.top) / rect.height) * 100
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging || !hasJoined || !currentUserId) return
+      const container = e.currentTarget as HTMLElement
+      const rect = container.getBoundingClientRect()
+      const x = ((e.clientX - rect.left) / rect.width) * 100
+      const y = ((e.clientY - rect.top) / rect.height) * 100
 
-    // Constrain to container bounds
-    const constrainedX = Math.max(5, Math.min(95, x))
-    const constrainedY = Math.max(5, Math.min(95, y))
+      // Constrain to container bounds
+      const constrainedX = Math.max(5, Math.min(95, x))
+      const constrainedY = Math.max(5, Math.min(95, y))
 
-    setAvatarPosition({ x: constrainedX, y: constrainedY })
-  }
+      // Update local state immediately for smooth dragging
+      setLocalPosition({ x: constrainedX, y: constrainedY })
+    },
+    [isDragging, hasJoined, currentUserId],
+  )
 
-  const handleMouseUp = () => {
+  const handleMouseUp = async () => {
+    if (isDragging && localPosition && hasJoined) {
+      // Sync to database only when dragging stops
+      await updatePosition({
+        roomId: id as any,
+        positionX: localPosition.x,
+        positionY: localPosition.y,
+      }).catch(console.error)
+    }
     setIsDragging(false)
+    setLocalPosition(null)
   }
 
   // Timer handlers
-  const handleStart = () => {
-    if (timeLeft === 0) {
-      setTimeLeft(25 * 60) // Reset to 25 minutes
+  const handleStart = async () => {
+    const newTime = timeLeft === 0 ? 25 * 60 : timeLeft
+    setTimeLeft(newTime)
+    setTimerState('running')
+    if (hasJoined) {
+      await updateTimer({
+        roomId: id as any,
+        timerState: 'running',
+        timeLeft: newTime,
+      })
     }
-    setTimerState('running')
   }
 
-  const handlePause = () => {
+  const handlePause = async () => {
     setTimerState('paused')
+    if (hasJoined) {
+      await updateTimer({
+        roomId: id as any,
+        timerState: 'paused',
+        timeLeft,
+      })
+    }
   }
 
-  const handleResume = () => {
+  const handleResume = async () => {
     setTimerState('running')
+    if (hasJoined) {
+      await updateTimer({
+        roomId: id as any,
+        timerState: 'running',
+        timeLeft,
+      })
+    }
   }
 
-  const handleStop = () => {
+  const handleStop = async () => {
     setTimerState('idle')
-    setTimeLeft(25 * 60)
+    const resetTime = 25 * 60
+    setTimeLeft(resetTime)
+    if (hasJoined) {
+      await updateTimer({
+        roomId: id as any,
+        timerState: 'idle',
+        timeLeft: resetTime,
+      })
+    }
   }
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setTimerState('idle')
-    setTimeLeft(25 * 60)
+    const resetTime = 25 * 60
+    setTimeLeft(resetTime)
+    if (hasJoined) {
+      await updateTimer({
+        roomId: id as any,
+        timerState: 'idle',
+        timeLeft: resetTime,
+      })
+    }
   }
 
-  const formatTime = (seconds: number) => {
+  const handleTaskChange = useCallback(
+    (newTask: string) => {
+      setTask(newTask)
+      isTypingTaskRef.current = true
+
+      // Clear previous debounce timeout
+      if (taskDebounceRef.current) {
+        clearTimeout(taskDebounceRef.current)
+      }
+
+      if (hasJoined) {
+        // Debounce task updates
+        taskDebounceRef.current = setTimeout(() => {
+          updateTask({
+            roomId: id as any,
+            task: newTask,
+          }).catch(console.error)
+          // Mark typing as complete after debounce
+          isTypingTaskRef.current = false
+        }, 500)
+      } else {
+        // If not joined, mark typing as complete immediately
+        isTypingTaskRef.current = false
+      }
+    },
+    [hasJoined, id, updateTask],
+  )
+
+  const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
+  }, [])
 
   if (room === undefined) {
     return (
@@ -166,14 +425,7 @@ function RoomPage() {
   }
 
   // If user has joined, show full-screen room view
-  if (hasJoined) {
-    const userInitial =
-      user?.firstName?.[0] || user?.emailAddresses[0]?.emailAddress[0] || 'U'
-    const userName =
-      user?.firstName ||
-      user?.emailAddresses[0]?.emailAddress.split('@')[0] ||
-      'User'
-
+  if (hasJoined && participants !== undefined) {
     return (
       <div className="fixed inset-0 overflow-hidden">
         {/* Background image */}
@@ -189,35 +441,27 @@ function RoomPage() {
           {/* Overlay for better visibility */}
           <div className="absolute inset-0 bg-black/20"></div>
 
-          {/* Draggable avatar */}
-          <div
-            ref={avatarRef}
-            className="absolute cursor-move select-none transition-transform hover:scale-105"
-            style={{
-              left: `${avatarPosition.x}%`,
-              top: `${avatarPosition.y}%`,
-              transform: 'translate(-50%, -50%)',
-            }}
-            onMouseDown={handleMouseDown}
-          >
-            <div className="flex flex-col items-center gap-1">
-              <div className="relative">
-                <div className="h-12 w-12 rounded-2xl bg-emerald-500/90 border-2 border-white shadow-lg flex items-center justify-center backdrop-blur-sm">
-                  <span className="text-lg font-semibold tracking-tight text-white">
-                    {userInitial.toUpperCase()}
-                  </span>
-                </div>
-                {timerState === 'running' && (
-                  <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></div>
-                )}
-              </div>
-              <div className="px-2 py-1 rounded-lg bg-white/90 backdrop-blur-sm border border-white/50 shadow-sm">
-                <span className="text-[10px] font-medium text-slate-800">
-                  {userName}
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* All participants' avatars */}
+          {participants.map((participant) => {
+            const isCurrentUser = participant.userId === currentUserId
+            // Use local position if dragging, otherwise use database position
+            const displayPosition =
+              isCurrentUser && isDragging && localPosition
+                ? localPosition
+                : { x: participant.positionX, y: participant.positionY }
+
+            return (
+              <ParticipantAvatar
+                key={participant.id}
+                participant={participant}
+                isCurrentUser={isCurrentUser}
+                displayPosition={displayPosition}
+                onMouseDown={() => handleMouseDown(participant.userId)}
+                formatTime={formatTime}
+                isDragging={isDragging && isCurrentUser}
+              />
+            )
+          })}
 
           {/* Pomodoro timer - floating at bottom center */}
           <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10">
@@ -228,7 +472,7 @@ function RoomPage() {
                   type="text"
                   placeholder="What are you working on?"
                   value={task}
-                  onChange={(e) => setTask(e.target.value)}
+                  onChange={(e) => handleTaskChange(e.target.value)}
                   className="text-sm"
                 />
 

@@ -13,4 +13,23 @@ export default defineSchema({
   })
     .index('visibility', ['visibility'])
     .index('ownerId', ['ownerId']),
+
+  roomParticipants: defineTable({
+    roomId: v.id('rooms'),
+    userId: v.string(),
+    userName: v.string(),
+    userInitial: v.string(),
+    positionX: v.number(),
+    positionY: v.number(),
+    timerState: v.union(
+      v.literal('idle'),
+      v.literal('running'),
+      v.literal('paused'),
+    ),
+    timeLeft: v.number(),
+    task: v.string(),
+    lastSeen: v.number(),
+  })
+    .index('roomId', ['roomId'])
+    .index('userId_roomId', ['userId', 'roomId']),
 })

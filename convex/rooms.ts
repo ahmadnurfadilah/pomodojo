@@ -112,6 +112,8 @@ export const join = mutation({
   args: {
     roomId: v.id('rooms'),
     joinCode: v.optional(v.string()),
+    userName: v.string(),
+    userInitial: v.string(),
   },
   handler: async (ctx, args) => {
     try {
@@ -131,11 +133,243 @@ export const join = mutation({
         }
       }
 
-      // In the future, this would add the user to a presence/participants table
-      // For now, we just validate they can join
+      const userId = identity.subject
+
+      // Check if user is already a participant
+      const existing = await ctx.db
+        .query('roomParticipants')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (existing) {
+        // Update last seen
+        await ctx.db.patch(existing._id, {
+          lastSeen: Date.now(),
+        })
+        return { success: true, roomId: room._id }
+      }
+
+      // Create new participant entry
+      await ctx.db.insert('roomParticipants', {
+        roomId: args.roomId,
+        userId,
+        userName: args.userName,
+        userInitial: args.userInitial,
+        positionX: 50,
+        positionY: 50,
+        timerState: 'idle',
+        timeLeft: 25 * 60,
+        task: '',
+        lastSeen: Date.now(),
+      })
+
       return { success: true, roomId: room._id }
     } catch (error) {
       console.error('Error joining room:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Get all participants in a room
+ */
+export const getParticipants = query({
+  args: { roomId: v.id('rooms') },
+  handler: async (ctx, args) => {
+    try {
+      const participants = await ctx.db
+        .query('roomParticipants')
+        .withIndex('roomId', (q) => q.eq('roomId', args.roomId))
+        .collect()
+
+      // Filter out participants who haven't been seen in 30 seconds (disconnected)
+      const now = Date.now()
+      const activeParticipants = participants.filter(
+        (p) => now - p.lastSeen < 30000,
+      )
+
+      return activeParticipants.map((p) => ({
+        id: p._id,
+        userId: p.userId,
+        userName: p.userName,
+        userInitial: p.userInitial,
+        positionX: p.positionX,
+        positionY: p.positionY,
+        timerState: p.timerState,
+        timeLeft: p.timeLeft,
+        task: p.task,
+      }))
+    } catch (error) {
+      console.error('Error getting participants:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Update participant position
+ */
+export const updatePosition = mutation({
+  args: {
+    roomId: v.id('rooms'),
+    positionX: v.number(),
+    positionY: v.number(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      const participant = await ctx.db
+        .query('roomParticipants')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (!participant) {
+        throw new Error('Participant not found')
+      }
+
+      await ctx.db.patch(participant._id, {
+        positionX: args.positionX,
+        positionY: args.positionY,
+        lastSeen: Date.now(),
+      })
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error updating position:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Update participant timer state
+ */
+export const updateTimer = mutation({
+  args: {
+    roomId: v.id('rooms'),
+    timerState: v.union(
+      v.literal('idle'),
+      v.literal('running'),
+      v.literal('paused'),
+    ),
+    timeLeft: v.number(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      const participant = await ctx.db
+        .query('roomParticipants')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (!participant) {
+        throw new Error('Participant not found')
+      }
+
+      await ctx.db.patch(participant._id, {
+        timerState: args.timerState,
+        timeLeft: args.timeLeft,
+        lastSeen: Date.now(),
+      })
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error updating timer:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Update participant task
+ */
+export const updateTask = mutation({
+  args: {
+    roomId: v.id('rooms'),
+    task: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      const participant = await ctx.db
+        .query('roomParticipants')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (!participant) {
+        throw new Error('Participant not found')
+      }
+
+      await ctx.db.patch(participant._id, {
+        task: args.task,
+        lastSeen: Date.now(),
+      })
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error updating task:', error)
+      throw error
+    }
+  },
+})
+
+/**
+ * Leave a room (remove participant)
+ */
+export const leaveRoom = mutation({
+  args: {
+    roomId: v.id('rooms'),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      const participant = await ctx.db
+        .query('roomParticipants')
+        .withIndex('userId_roomId', (q) =>
+          q.eq('userId', userId).eq('roomId', args.roomId),
+        )
+        .first()
+
+      if (participant) {
+        await ctx.db.delete(participant._id)
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error leaving room:', error)
       throw error
     }
   },
