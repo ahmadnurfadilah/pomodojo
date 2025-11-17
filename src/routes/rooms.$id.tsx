@@ -7,6 +7,7 @@ import {
   useQuery,
 } from 'convex/react'
 import {
+  ChartBar,
   Hourglass,
   LogIn,
   Medal,
@@ -232,6 +233,9 @@ function RoomPage() {
   const leaderboard = useQuery(api.rooms.getLeaderboard, {
     roomId: id as any,
   })
+  const userSessions = useQuery(api.rooms.getUserSessions, {
+    roomId: id as any,
+  })
   const joinRoom = useMutation(api.rooms.join)
   const updatePosition = useMutation(api.rooms.updatePosition)
   const updateTimer = useMutation(api.rooms.updateTimer)
@@ -244,6 +248,7 @@ function RoomPage() {
   const [hasJoined, setHasJoined] = useState(false)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
   const [isLeaderboardDialogOpen, setIsLeaderboardDialogOpen] = useState(false)
+  const [isStatisticsDialogOpen, setIsStatisticsDialogOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -900,6 +905,13 @@ function RoomPage() {
                   >
                     <Medal className="size-5" />
                   </button>
+                  <button
+                    onClick={() => setIsStatisticsDialogOpen(true)}
+                    className="p-2 rounded-lg hover:bg-white/60 transition-colors"
+                    aria-label="My Statistics"
+                  >
+                    <ChartBar className="size-5" />
+                  </button>
                   {isRoomOwner && (
                     <button
                       onClick={() => setIsSettingsDialogOpen(true)}
@@ -1227,6 +1239,142 @@ function RoomPage() {
                     )
                   })}
                 </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Statistics Dialog */}
+        <Dialog
+          open={isStatisticsDialogOpen}
+          onOpenChange={setIsStatisticsDialogOpen}
+        >
+          <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="text-[20px] font-semibold tracking-tight text-slate-900 flex items-center gap-2">
+                <ChartBar className="size-4 text-emerald-500" />
+                My Statistics
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-700">
+                Your session history and total focus time
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-1 flex-1 overflow-y-auto min-h-0">
+              {userSessions === undefined ? (
+                <div className="flex items-center justify-center py-6">
+                  <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-600"></div>
+                </div>
+              ) : userSessions.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 text-sm">
+                  <p>No sessions yet. Start a timer to track your focus time!</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary Stats */}
+                  <div className="mb-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[10px] text-slate-600 mb-0.5">Total Sessions</div>
+                        <div className="text-xl font-semibold text-slate-900">
+                          {userSessions.length}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-600 mb-0.5">Total Time</div>
+                        <div className="text-xl font-semibold text-slate-900">
+                          {(() => {
+                            const totalSeconds = userSessions.reduce(
+                              (sum, session) => sum + session.duration,
+                              0,
+                            )
+                            const totalHours = Math.floor(totalSeconds / 3600)
+                            const totalMinutes = Math.floor((totalSeconds % 3600) / 60)
+                            return totalHours > 0
+                              ? `${totalHours}h ${totalMinutes}m`
+                              : `${totalMinutes}m`
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Session List */}
+                  <div className="space-y-1 pr-1">
+                    {userSessions.map((session) => {
+                      // Format duration: convert seconds to minutes and seconds
+                      const minutes = Math.floor(session.duration / 60)
+                      const seconds = session.duration % 60
+                      const durationDisplay =
+                        minutes > 0
+                          ? `${minutes}m ${seconds}s`
+                          : `${seconds}s`
+
+                      // Format date
+                      const date = new Date(session.completedAt)
+                      const dateDisplay = date.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+                      })
+                      const timeDisplay = date.toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })
+
+                      // Timer type emoji and label
+                      const timerTypeConfig = {
+                        pomodoro: { emoji: '🍅', label: 'Pomodoro', color: 'emerald' },
+                        shortBreak: { emoji: '☕', label: 'Short Break', color: 'blue' },
+                        longBreak: { emoji: '🌴', label: 'Long Break', color: 'purple' },
+                      }
+                      const config = timerTypeConfig[session.timerType]
+
+                      return (
+                        <div
+                          key={session.id}
+                          className="flex items-start gap-2 p-2 rounded-lg border bg-white border-slate-200 hover:bg-slate-50 transition-colors"
+                        >
+                          {/* Timer Type Icon */}
+                          <div
+                            className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-base ${
+                              config.color === 'emerald'
+                                ? 'bg-emerald-100'
+                                : config.color === 'blue'
+                                  ? 'bg-blue-100'
+                                  : 'bg-purple-100'
+                            }`}
+                          >
+                            {config.emoji}
+                          </div>
+
+                          {/* Session Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-0.5">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-semibold text-slate-900">
+                                  {config.label}
+                                </div>
+                                {session.task && (
+                                  <div className="text-[10px] text-slate-600 truncate mt-0.5">
+                                    {session.task}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <div className="text-xs font-semibold text-slate-900">
+                                  {durationDisplay}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              {dateDisplay} at {timeDisplay}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </div>
           </DialogContent>

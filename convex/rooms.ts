@@ -685,3 +685,45 @@ export const getLeaderboard = query({
     }
   },
 })
+
+/**
+ * Get user's session history for a room
+ * Returns sessions ordered by completion time (newest first)
+ */
+export const getUserSessions = query({
+  args: { roomId: v.id('rooms') },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity === null) {
+        throw new Error('Not authenticated')
+      }
+
+      const userId = identity.subject
+
+      // Get all sessions for this user in this room
+      const sessions = await ctx.db
+        .query('pomodoroSessions')
+        .withIndex('roomId_userId', (q) =>
+          q.eq('roomId', args.roomId).eq('userId', userId),
+        )
+        .collect()
+
+      // Sort by completedAt descending (newest first)
+      const sortedSessions = sessions.sort(
+        (a, b) => b.completedAt - a.completedAt,
+      )
+
+      return sortedSessions.map((session) => ({
+        id: session._id,
+        timerType: session.timerType,
+        duration: session.duration,
+        task: session.task,
+        completedAt: session.completedAt,
+      }))
+    } catch (error) {
+      console.error('Error getting user sessions:', error)
+      throw error
+    }
+  },
+})
